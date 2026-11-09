@@ -5,18 +5,28 @@
   "type": "module",
   "description": "Course Catalog API platform contract and Worker implementation",
   "scripts": {
+    "dev": "wrangler dev",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "types": "wrangler types",
+    "migrate:local": "wrangler d1 migrations apply DB --local",
+    "migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "seed:local": "wrangler d1 execute DB --local --file=./seed.sql",
+    "seed:remote": "wrangler d1 execute DB --remote --file=./seed.sql",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:prod": "wrangler deploy --env production",
     "lint:openapi": "redocly lint openapi.yaml",
     "validate:contract": "npm run lint:openapi && npm run typecheck && npm test"
   },
   "dependencies": {
+    "hono": "^4.13.17",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@redocly/cli": "^2.76.0",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0",
+    "wrangler": "^4.158.0",
     "yaml": "^2.9.1"
   }
 }
