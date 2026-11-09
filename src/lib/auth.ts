@@ -2,7 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import type { Role } from "../schemas/common.js";
 import type { AppEnv, AuthContext } from "../types.js";
 import { apiError } from "./errors.js";
-import { verifyJwt } from "./jwt.js";
+import { JwtVerificationError, verifyJwt } from "./jwt.js";
 
 export const READ_ROLES: Role[] = [
   "student",
@@ -35,7 +35,13 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 
   try {
     auth = await verifyJwt(token, c.env);
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof JwtVerificationError &&
+      /unavailable|returned an invalid response|invalid claims/i.test(error.message)
+    ) {
+      return apiError(c, 503, "service_unavailable", "Student identity verification is temporarily unavailable.");
+    }
     return unauthorized(c);
   }
 

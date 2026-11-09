@@ -1,17 +1,27 @@
 # Authentication and Authorization
 
-The Course Catalog API uses Bearer JWTs. Every operation except
-`GET /v1/health` requires an `Authorization` header:
+The Course Catalog API uses Bearer JWTs. All operations except
+`GET /v1/health` and `POST /v1/auth/login` require an `Authorization` header:
 
 ```http
 Authorization: Bearer <jwt>
 ```
 
-The API does not accept tokens in query strings, cookies, or request bodies.
-Tokens must be short-lived and must never be logged or committed to source
-control.
+The browser login page sends student ID and password to the Course Catalog
+login proxy. The proxy forwards credentials to Student Identity over HTTPS;
+Course Catalog does not store passwords. The returned token is held in browser
+memory only. The API does not accept tokens in query strings or cookies.
 
-## Token profile
+For Student Identity tokens, every authenticated API request is checked by
+`POST https://student-identity.onrender.com/tokens/verify` with
+`{"token":"<jwt>"}`. The verifier response, not locally decoded JWT claims,
+determines the subject and role. Student identities map to the Course Catalog
+`student` role; instructor identities map to `instructor`. Staff identities
+are not granted catalog staff or administrator access. Verification fails
+closed when Student Identity is unavailable. Existing catalog-issued HS256
+tokens remain supported for service and development use.
+
+## Catalog-issued token profile
 
 Tokens are compact-serialized JWTs issued by the catalog identity provider.
 The current Worker verifies `HS256` tokens using the `JWT_SECRET` Worker

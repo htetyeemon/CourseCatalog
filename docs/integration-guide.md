@@ -17,11 +17,30 @@ All routes are served under `/v1`. Health is public: `GET /v1/health`.
 
 ## 2. Authentication
 
-Every operation except `GET /v1/health` requires a Bearer JWT:
+All operations except `GET /v1/health` and `POST /v1/auth/login` require a Bearer JWT:
 
 ```http
 Authorization: Bearer <jwt>
 ```
+
+The browser at `/` supports Student Identity sign-in. It posts credentials to
+`POST /v1/auth/login`; the Worker forwards them to Student Identity and returns
+the short-lived token after verification. For API clients, the identity login
+endpoint is `POST https://student-identity.onrender.com/auth/login` with
+`{"studentId":"<10-digit-id>","password":"<password>"}`. Use the returned
+token as the Course Catalog Bearer token. Course Catalog checks Student
+Identity tokens with its `/tokens/verify` service on each request. Student and
+instructor roles are supported; Student Identity `staff` does not grant
+Course Catalog administrative access.
+
+New students can create an account from the sign-in screen. The browser sends
+`studentId`, `firstName`, `lastName`, `email`, optional `faculty`, and
+`password` to `POST /v1/auth/signup`; Student Identity creates the account and
+returns a token, and the student is signed in after that token is verified.
+
+The Student Identity service-client API key is not used for browser login.
+Keep it in a Worker secret if a future server-to-server claims integration is
+added; never send it to browser code.
 
 ### Getting a test token (development only)
 

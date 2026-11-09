@@ -6,6 +6,7 @@ import { AppError } from "./lib/app-error.js";
 import { apiError } from "./lib/errors.js";
 import { requestIdMiddleware } from "./lib/request-id.js";
 import { coursesRoute } from "./routes/courses.js";
+import { authRoute } from "./routes/auth.js";
 import { healthRoute } from "./routes/health.js";
 import { instructorsRoute } from "./routes/instructors.js";
 import {
@@ -32,9 +33,14 @@ app.use(
     maxAge: 86_400,
   }),
 );
+app.use("/v1/auth/*", rateLimitMiddleware({ windowMs: 60_000, maxRequests: 10 }));
 app.use("/v1/*", rateLimitMiddleware());
 app.use("/v1/*", async (c, next) => {
-  if (c.req.path === "/v1/health") {
+  if (
+    c.req.path === "/v1/health" ||
+    c.req.path === "/v1/auth/login" ||
+    c.req.path === "/v1/auth/signup"
+  ) {
     await next();
     return;
   }
@@ -43,6 +49,7 @@ app.use("/v1/*", async (c, next) => {
 });
 
 app.route("/v1/health", healthRoute);
+app.route("/v1/auth", authRoute);
 app.route("/v1/courses", coursesRoute);
 app.route("/v1/courses", coursePrerequisitesRoute);
 app.route("/v1/instructors", instructorsRoute);

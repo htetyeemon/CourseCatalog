@@ -31,6 +31,11 @@ npm run dev
 npm run token:dev -- --role catalog_admin --sub ins_01J9ZK5A1B2C3D4E5F6G7H8J01
 ```
 
+Students can sign in through the browser at `/` using Student Identity. The
+Worker verifies identity tokens with Student Identity on each API request.
+Catalog-issued development tokens remain available for local administrative
+work.
+
 ## Available scripts
 
 | Script | Description |

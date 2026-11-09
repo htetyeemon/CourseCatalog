@@ -167,6 +167,57 @@ function validateClaims(claims: JwtClaims, env: Env): AuthContext {
 }
 
 export async function verifyJwt(token: string, env: Env): Promise<AuthContext> {
+  // Student Identity owns student credentials and token signing. Ask its verifier
+  // rather than trusting claims decoded from the bearer token locally.
+  let identityResponse: Response;
+  try {
+    identityResponse = await fetch("https://student-identity.onrender.com/tokens/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+      signal: AbortSignal.timeout(8_000),
+    });
+  } catch {
+    throw new JwtVerificationError("Student Identity verification is unavailable.");
+  }
+
+  if (!identityResponse.ok) {
+    throw new JwtVerificationError("Student Identity verification is unavailable.");
+  }
+
+  let identity: unknown;
+  try {
+    identity = await identityResponse.json();
+  } catch {
+    throw new JwtVerificationError("Student Identity returned an invalid response.");
+  }
+
+  if (
+    typeof identity !== "object" || identity === null ||
+    !("valid" in identity) || typeof identity.valid !== "boolean"
+  ) {
+    throw new JwtVerificationError("Student Identity returned an invalid response.");
+  }
+
+  if (
+    identity.valid === true
+  ) {
+    const claims = identity as { sub?: unknown; role?: unknown; expiresAt?: unknown };
+    const expiresAt = typeof claims.expiresAt === "string" ? Date.parse(claims.expiresAt) : NaN;
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || typeof claims.sub !== "string" || !claims.sub) {
+      throw new JwtVerificationError("Student Identity returned invalid claims.");
+    }
+    if (claims.role === "student") return { sub: claims.sub, role: "student" };
+    if (claims.role === "instructor") return { sub: claims.sub, role: "instructor" };
+    throw new JwtVerificationError("This identity role cannot access the Course Catalog.");
+  }
+
+  if ("reason" in identity && identity.reason === "suspended") {
+    throw new JwtVerificationError("This identity is suspended.");
+  }
+
+  // Preserve the existing catalog-issued token path for catalog administrators,
+  // services, local development, and existing integrations.
   const parsed = parseToken(token);
   const verifier = Object.hasOwn(verifiers, parsed.header.alg)
     ? verifiers[parsed.header.alg]

@@ -7,20 +7,103 @@
     <link rel="stylesheet" href="/css/app.css" />
   </head>
   <body>
-    <h1>Course Catalog</h1>
-    <div id="token-banner"></div>
+    <main id="auth-screen" class="auth-screen">
+      <section class="auth-card" aria-label="Student sign in">
+        <div class="auth-brand-mark" aria-hidden="true">CC</div>
+        <div id="sign-in-panel">
+          <p class="auth-eyebrow">STUDENT PORTAL</p>
+          <h1>Welcome back</h1>
+          <p class="auth-intro">Sign in with your Student Identity account to explore courses.</p>
+          <form id="sign-in-form" class="auth-form">
+            <label for="student-id">Student ID</label>
+            <input id="student-id" name="studentId" inputmode="numeric" autocomplete="username" maxlength="10" placeholder="Enter your student ID" required />
+            <label for="student-password">Password</label>
+            <input id="student-password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+            <button id="sign-in-submit" type="submit">Sign in</button>
+            <span id="sign-in-error" role="alert"></span>
+          </form>
+          <p class="auth-switch">New to the Course Catalog? <button id="show-signup" class="text-button" type="button">Create an account</button></p>
+        </div>
 
-    <div class="search-bar">
-      <input type="search" id="q" placeholder="Search courses…" aria-label="Search courses" />
-      <button type="button" id="btn-search">Search</button>
-    </div>
+        <div id="sign-up-panel" hidden>
+          <p class="auth-eyebrow">STUDENT PORTAL</p>
+          <h1>Create your account</h1>
+          <p class="auth-intro">Use your student details to get started.</p>
+          <form id="sign-up-form" class="auth-form">
+            <label for="signup-student-id">Student ID</label>
+            <input id="signup-student-id" name="studentId" inputmode="numeric" autocomplete="username" maxlength="10" pattern="[0-9]{10}" placeholder="10-digit student ID" required />
+            <div class="auth-form-row">
+              <div><label for="first-name">First name</label><input id="first-name" name="firstName" autocomplete="given-name" maxlength="100" required /></div>
+              <div><label for="last-name">Last name</label><input id="last-name" name="lastName" autocomplete="family-name" maxlength="100" required /></div>
+            </div>
+            <label for="signup-email">Email</label>
+            <input id="signup-email" name="email" type="email" autocomplete="email" required />
+            <label for="faculty">Faculty / School <span class="auth-optional">Optional</span></label>
+            <input id="faculty" name="faculty" autocomplete="organization" maxlength="120" />
+            <label for="signup-password">Password</label>
+            <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required />
+            <label for="confirm-password">Confirm password</label>
+            <input id="confirm-password" name="confirm" type="password" autocomplete="new-password" minlength="8" required />
+            <button id="sign-up-submit" type="submit">Create account</button>
+            <span id="sign-up-error" role="alert"></span>
+          </form>
+          <p class="auth-switch">Already have an account? <button id="show-signin" class="text-button" type="button">Sign in</button></p>
+        </div>
+        <p class="auth-footnote">Your credentials are securely checked by Student Identity.</p>
+      </section>
+    </main>
 
-    <div class="filters">
-      <label>Department</label>
-      <select id="department"><option value="">All</option></select>
-      <label>Level</label>
-      <select id="level"><option value="">All</option></select>
-    </div>
+    <main id="catalog-screen" class="catalog-screen" hidden>
+      <header class="catalog-header">
+        <div>
+          <p class="auth-eyebrow">ACADEMIC DIRECTORY</p>
+          <h1>Course Catalog</h1>
+          <p>Plan what you’ll learn next.</p>
+        </div>
+        <div class="catalog-account">
+          <span id="signed-in-label"></span>
+          <button id="sign-out" class="secondary" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <section class="catalog-hero">
+        <div class="catalog-hero__copy">
+          <p class="catalog-hero__eyebrow">YOUR NEXT CHAPTER STARTS HERE</p>
+          <h2>Find a course<br />that moves you forward.</h2>
+          <p>Browse subjects, discover new interests, and build a path around your goals.</p>
+        </div>
+        <div class="catalog-hero__ornament" aria-hidden="true">
+          <span class="catalog-hero__orbit catalog-hero__orbit--one"></span>
+          <span class="catalog-hero__orbit catalog-hero__orbit--two"></span>
+          <span class="catalog-hero__monogram">CC</span>
+          <span class="catalog-hero__spark catalog-hero__spark--one">✦</span>
+          <span class="catalog-hero__spark catalog-hero__spark--two">✧</span>
+        </div>
+      </section>
+
+      <section class="catalog-controls" aria-label="Search and filter courses">
+        <div class="search-bar">
+          <label class="search-field" for="q">
+            <span>Search courses</span>
+            <span class="search-field__input-wrap"><span aria-hidden="true">⌕</span><input type="search" id="q" placeholder="Try a course title, subject, or keyword" aria-label="Search courses" /></span>
+          </label>
+          <button type="button" id="btn-search">Find courses <span aria-hidden="true">→</span></button>
+        </div>
+
+        <div class="filters">
+          <label for="department">Department
+            <select id="department"><option value="">All departments</option></select>
+          </label>
+          <label for="level">Course level
+            <select id="level"><option value="">All levels</option></select>
+          </label>
+        </div>
+      </section>
+
+      <div class="catalog-section-heading">
+        <div><p class="auth-eyebrow">THE COURSE DIRECTORY</p><h2>Explore courses</h2></div>
+        <span class="catalog-section-heading__note">Choose a course to see details and prerequisites</span>
+      </div>
 
     <div id="departments-loading" class="loader" style="display:none" role="status" aria-label="Loading filters"></div>
     <div id="filter-error" style="color:#f87171; margin-bottom:0.5rem; font-size:0.9rem;"></div>
@@ -31,13 +114,125 @@
     <div id="course-list-empty" style="margin-bottom:0.5rem;"></div>
     <div id="pagination"></div>
 
-    <p class="inline-note" style="margin-top:1rem; color:#64748b;">Results require a valid bearer JWT. Enter it in the banner above.</p>
+    </main>
 
     <script type="module">
-      import { api, setToken, getToken, htmlEscape, renderCourseListItem } from "/js/api.js";
-      import { initTokenBanner, showLoading, showEmpty, showError, renderPagination, toast } from "/js/ui.js";
+      import { api, setToken, clearToken, getToken, htmlEscape, renderCourseListItem } from "/js/api.js";
+      import { showLoading, showEmpty, showError, renderPagination, toast } from "/js/ui.js";
 
-      initTokenBanner({ containerId: "token-banner", onSet: () => { loadFilters(); loadCourses(); } });
+      const authScreen = document.getElementById("auth-screen");
+      const catalogScreen = document.getElementById("catalog-screen");
+      const signInForm = document.getElementById("sign-in-form");
+      const signInError = document.getElementById("sign-in-error");
+      const signUpForm = document.getElementById("sign-up-form");
+      const signUpError = document.getElementById("sign-up-error");
+      const signInPanel = document.getElementById("sign-in-panel");
+      const signUpPanel = document.getElementById("sign-up-panel");
+      const signedInLabel = document.getElementById("signed-in-label");
+
+      const returnedToken = sessionStorage.getItem("course-catalog-detail-token");
+      const returnedSubject = sessionStorage.getItem("course-catalog-detail-subject");
+      sessionStorage.removeItem("course-catalog-detail-token");
+      sessionStorage.removeItem("course-catalog-detail-subject");
+      let signedInSubject = null;
+      if (returnedToken) {
+        setToken(returnedToken);
+        signedInSubject = returnedSubject;
+        signedInLabel.textContent = signedInSubject ? `Student ID: ${signedInSubject}` : "Student session active";
+      }
+
+      function showAuthPanel(panel) {
+        const signingUp = panel === "signup";
+        signInPanel.hidden = signingUp;
+        signUpPanel.hidden = !signingUp;
+        (signingUp ? document.getElementById("signup-student-id") : document.getElementById("student-id")).focus();
+      }
+
+      function enterCatalog(data) {
+        setToken(data.token);
+        signedInSubject = data.subject;
+        signedInLabel.textContent = `Student ID: ${signedInSubject}`;
+        signInForm.reset();
+        signUpForm.reset();
+        updateSignIn();
+        loadFilters();
+        loadCourses();
+      }
+
+      document.getElementById("show-signup").addEventListener("click", () => showAuthPanel("signup"));
+      document.getElementById("show-signin").addEventListener("click", () => showAuthPanel("signin"));
+
+      function updateSignIn() {
+        const active = Boolean(getToken());
+        authScreen.hidden = active;
+        catalogScreen.hidden = !active;
+      }
+
+      signInForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        signInError.textContent = "";
+        const submit = document.getElementById("sign-in-submit");
+        submit.disabled = true;
+        const values = new FormData(signInForm);
+        try {
+          const response = await api("/auth/login", {
+            method: "POST",
+            body: JSON.stringify({ studentId: values.get("studentId"), password: values.get("password") }),
+          });
+          if (!response.ok || typeof response.body?.data?.token !== "string") {
+            signInError.textContent = response.body?.error?.message || "Unable to sign in.";
+            return;
+          }
+          enterCatalog(response.body.data);
+        } catch {
+          signInError.textContent = "Student sign-in is temporarily unavailable.";
+        } finally {
+          submit.disabled = false;
+        }
+      });
+
+      signUpForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        signUpError.textContent = "";
+        const submit = document.getElementById("sign-up-submit");
+        const values = new FormData(signUpForm);
+        const password = String(values.get("password") || "");
+        if (password !== values.get("confirm")) {
+          signUpError.textContent = "Passwords do not match.";
+          document.getElementById("confirm-password").focus();
+          return;
+        }
+        submit.disabled = true;
+        try {
+          const response = await api("/auth/signup", {
+            method: "POST",
+            body: JSON.stringify({
+              studentId: values.get("studentId"),
+              firstName: values.get("firstName"),
+              lastName: values.get("lastName"),
+              email: values.get("email"),
+              faculty: values.get("faculty"),
+              password,
+            }),
+          });
+          if (!response.ok || typeof response.body?.data?.token !== "string") {
+            signUpError.textContent = response.body?.error?.message || "Unable to create your account.";
+            return;
+          }
+          enterCatalog(response.body.data);
+        } catch {
+          signUpError.textContent = "Account creation is temporarily unavailable.";
+        } finally {
+          submit.disabled = false;
+        }
+      });
+
+      document.getElementById("sign-out").addEventListener("click", () => {
+        clearToken();
+        signedInSubject = null;
+        signedInLabel.textContent = "";
+        updateSignIn();
+      });
 
       const qInput = document.getElementById("q");
       const btnSearch = document.getElementById("btn-search");
@@ -49,6 +244,14 @@
       const emptyEl = document.getElementById("course-list-empty");
       const deptLoading = document.getElementById("departments-loading");
       const filterError = document.getElementById("filter-error");
+
+      listEl.addEventListener("click", (event) => {
+        const link = event.target.closest("a.course-card__link");
+        if (link && getToken()) {
+          sessionStorage.setItem("course-catalog-detail-token", getToken());
+          if (signedInSubject) sessionStorage.setItem("course-catalog-detail-subject", signedInSubject);
+        }
+      });
 
       let page = 1;
       const limit = 10;
@@ -100,7 +303,11 @@
           const res = await api(`/courses?${params.toString()}`, { signal: abortCtrl.signal });
           if (!res.ok) {
             if (res.status === 401) {
-              showError("course-list", "Unauthorized — please enter a valid bearer JWT in the banner.");
+              clearToken();
+              signedInSubject = null;
+              signedInLabel.textContent = "";
+              updateSignIn();
+              signInError.textContent = "Your session expired. Please sign in again.";
               return;
             }
             throw new Error(`Failed to load courses (${res.status})`);
@@ -137,8 +344,11 @@
       deptSelect.addEventListener("change", () => { page = 1; loadCourses(); });
       levelSelect.addEventListener("change", () => { page = 1; loadCourses(); });
 
-      loadFilters();
-      loadCourses();
+      updateSignIn();
+      if (getToken()) {
+        loadFilters();
+        loadCourses();
+      }
     </script>
   </body>
 </html>

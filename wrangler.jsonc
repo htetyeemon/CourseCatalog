@@ -34,10 +34,10 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "course-catalog-dev",
+      "database_name": "course-catalog-production",
       // Local dev and tests use a local SQLite file, so this placeholder ID is never
       // resolved against Cloudflare. Remote D1 commands must pass --env.
-      "database_id": "00000000-0000-4000-8000-000000000001",
+      "database_id": "023e8546-9369-4672-977f-32b1d5fd3b24",
       "migrations_dir": "migrations"
     }
   ],

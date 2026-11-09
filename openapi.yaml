@@ -23,7 +23,7 @@ info:
 
     ## Authentication and authorization
 
-    Every operation except `GET /v1/health` requires a Bearer JWT:
+    All operations except `GET /v1/health` and `POST /v1/auth/login` require a Bearer JWT:
     `Authorization: Bearer <token>`. The token claims are `sub`, `role`, `iss`,
     and `exp`. The supported roles are `student`, `instructor`,
     `catalog_admin`, and `service`. Each operation declares its accepted roles
@@ -59,9 +59,129 @@ tags:
     description: Webhook subscriptions, deliveries, and event delivery contract.
   - name: Health
     description: Service health and dependency status.
+  - name: Authentication
+    description: Student Identity sign-in.
 security:
   - bearerAuth: []
 paths:
+  /v1/auth/login:
+    post:
+      tags: [Authentication]
+      operationId: studentLogin
+      summary: Sign in with Student Identity
+      description: Forwards student credentials to Student Identity and returns a short-lived identity token after verification. Credentials are not stored by Course Catalog.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [studentId, password]
+              properties:
+                studentId:
+                  type: string
+                  pattern: '^\d{10}$'
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 1024
+      responses:
+        '200':
+          description: Student signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [token, subject, role]
+                    properties:
+                      token:
+                        type: string
+                      subject:
+                        type: string
+                      role:
+                        type: string
+                        const: student
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/auth/signup:
+    post:
+      tags: [Authentication]
+      operationId: studentSignup
+      summary: Create a Student Identity account
+      description: Forwards student account details to Student Identity. On success, returns a verified short-lived token and signs the new student in.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [studentId, firstName, lastName, email, password]
+              properties:
+                studentId:
+                  type: string
+                  pattern: '^\d{10}$'
+                firstName:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                lastName:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                email:
+                  type: string
+                  format: email
+                faculty:
+                  type: string
+                  maxLength: 120
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 1024
+      responses:
+        '200':
+          description: Account created and signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [token, subject, role]
+                    properties:
+                      token:
+                        type: string
+                      subject:
+                        type: string
+                      role:
+                        type: string
+                        const: student
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /v1/courses:
     get:
       tags: [Courses]
