@@ -37,7 +37,7 @@
       import { api, setToken, getToken, htmlEscape, renderCourseListItem } from "/js/api.js";
       import { initTokenBanner, showLoading, showEmpty, showError, renderPagination, toast } from "/js/ui.js";
 
-      initTokenBanner({ containerId: "token-banner" });
+      initTokenBanner({ containerId: "token-banner", onSet: () => { loadFilters(); loadCourses(); } });
 
       const qInput = document.getElementById("q");
       const btnSearch = document.getElementById("btn-search");
@@ -97,7 +97,7 @@
         abortCtrl = new AbortController();
 
         try {
-          const res = await api(`/courses?${params.toString()}`);
+          const res = await api(`/courses?${params.toString()}`, { signal: abortCtrl.signal });
           if (!res.ok) {
             if (res.status === 401) {
               showError("course-list", "Unauthorized — please enter a valid bearer JWT in the banner.");
@@ -125,6 +125,7 @@
             onPage: (p) => { page = p; loadCourses(); },
           }));
         } catch (err) {
+          if (err.name === "AbortError") return;
           showError("course-list", err.message || "Unable to load courses.");
         }
       }

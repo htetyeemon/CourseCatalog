@@ -14,11 +14,38 @@ import { CourseSchema } from "./course.js";
 import { InstructorSchema } from "./instructor.js";
 import { PrerequisiteRuleSchema } from "./prerequisite.js";
 
+const blockedHostPattern = /^(localhost|.*\.localhost|.*\.local|.*\.internal|.*\.home\.arpa)$/i;
+const ipv4HostPattern = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+// Deliveries are server-side requests, so refuse credentials, IP literals and
+// internal hostnames (see docs/webhooks.md "Subscription endpoint requirements").
+function isPublicWebhookUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  const host = url.hostname.toLowerCase();
+  return (
+    url.protocol === "https:" &&
+    url.username === "" &&
+    url.password === "" &&
+    !host.startsWith("[") &&
+    !ipv4HostPattern.test(host) &&
+    !blockedHostPattern.test(host) &&
+    host.includes(".")
+  );
+}
+
 const webhookUrlSchema = z
   .url()
   .max(2048)
   .refine((value) => value.startsWith("https://"), {
     message: "Webhook URLs must use https://.",
+  })
+  .refine(isPublicWebhookUrl, {
+    message: "Webhook URLs must point to a public hostname and must not contain credentials.",
   });
 
 export const WebhookEventTypeSchema = z.enum(["course.published"]);

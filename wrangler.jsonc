@@ -1,7 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "course-catalog",
+  // Top-level settings are the local development profile (`wrangler dev`, Vitest).
+  // Deployments must target a named environment:
+  //   npm run deploy:staging   ->  course-catalog-staging
+  //   npm run deploy:prod      ->  course-catalog (production)
+  "name": "course-catalog-dev",
   "main": "src/index.ts",
+  // Node.js compatibility (used for node:crypto) is on by default for compatibility
+  // dates of 2026-08-04 or later, so no `nodejs_compat` flag is required.
   "compatibility_date": "2026-11-04",
   "assets": {
     "directory": "./public",
@@ -10,28 +16,33 @@
   "observability": {
     "enabled": true
   },
+  // Pending/failed webhook deliveries are retried by the `scheduled` handler.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "vars": {
     "APP_VERSION": "0.1.0",
     "ENVIRONMENT": "development",
     "JWT_ISSUER": "https://auth.course-catalog.dev",
-    "JWT_AUDIENCE": "catalog-api"
+    "JWT_AUDIENCE": "catalog-api",
+    "AI_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct"
   },
+  // JWT_SECRET comes from .dev.vars locally and from `wrangler secret put` remotely.
   "secrets": {
     "required": ["JWT_SECRET"]
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "course-catalog",
+      "database_name": "course-catalog-dev",
+      // Local dev and tests use a local SQLite file, so this placeholder ID is never
+      // resolved against Cloudflare. Remote D1 commands must pass --env.
       "database_id": "00000000-0000-4000-8000-000000000001",
       "migrations_dir": "migrations"
     }
   ],
   "ai": {
     "binding": "AI"
-  },
-  "triggers": {
-    "cron": ["*/5 * * * *"]
   },
   "env": {
     "staging": {
@@ -40,7 +51,8 @@
         "APP_VERSION": "0.1.0",
         "ENVIRONMENT": "staging",
         "JWT_ISSUER": "https://auth.course-catalog.dev",
-        "JWT_AUDIENCE": "catalog-api"
+        "JWT_AUDIENCE": "catalog-api",
+        "AI_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct"
       },
       "secrets": {
         "required": ["JWT_SECRET"]
@@ -49,7 +61,8 @@
         {
           "binding": "DB",
           "database_name": "course-catalog-staging",
-          "database_id": "00000000-0000-4000-8000-000000000002",
+          // Set to the ID printed by: wrangler d1 create course-catalog-staging
+          "database_id": "e3a5c620-7188-47ed-b99d-9399ccf0b302",
           "migrations_dir": "migrations"
         }
       ],
@@ -63,7 +76,8 @@
         "APP_VERSION": "0.1.0",
         "ENVIRONMENT": "production",
         "JWT_ISSUER": "https://auth.course-catalog.dev",
-        "JWT_AUDIENCE": "catalog-api"
+        "JWT_AUDIENCE": "catalog-api",
+        "AI_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct"
       },
       "secrets": {
         "required": ["JWT_SECRET"]
@@ -72,7 +86,8 @@
         {
           "binding": "DB",
           "database_name": "course-catalog-production",
-          "database_id": "00000000-0000-4000-8000-000000000003",
+          // Set to the ID printed by: wrangler d1 create course-catalog-production
+          "database_id": "023e8546-9369-4672-977f-32b1d5fd3b24",
           "migrations_dir": "migrations"
         }
       ],

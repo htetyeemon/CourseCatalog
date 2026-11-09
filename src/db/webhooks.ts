@@ -79,7 +79,8 @@ export async function createSubscription(
       input.description ?? null,
       now,
       now,
-    );
+    )
+    .run();
 
   return {
     id,
@@ -180,7 +181,8 @@ export async function disableSubscription(
        SET active = 0, updated_at = ?
        WHERE id = ?`,
     )
-    .bind(now, id);
+    .bind(now, id)
+    .run();
 }
 
 export async function createDelivery(
@@ -189,6 +191,8 @@ export async function createDelivery(
     subscriptionId: string;
     eventId: string;
     eventType: string;
+    /** Exact JSON body to deliver; retries must re-send identical bytes. */
+    requestBody: string;
   },
 ): Promise<WebhookDelivery> {
   const id = `whd_${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`;
@@ -214,10 +218,11 @@ export async function createDelivery(
   await db
     .prepare(
       `INSERT INTO webhook_deliveries
-         (id, subscription_id, event_id, event_type, status, attempts, max_attempts, next_attempt_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'pending', 0, 6, ?, ?, ?)`,
+         (id, subscription_id, event_id, event_type, status, attempts, max_attempts, next_attempt_at, request_body, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'pending', 0, 6, ?, ?, ?, ?)`,
     )
-    .bind(id, input.subscriptionId, input.eventId, input.eventType, now, now, now);
+    .bind(id, input.subscriptionId, input.eventId, input.eventType, now, input.requestBody, now, now)
+    .run();
 
   return {
     id,
@@ -313,7 +318,8 @@ export async function updateDelivery(
        SET ${assignments.join(", ")}
        WHERE id = ?`,
     )
-    .bind(...bindings);
+    .bind(...bindings)
+    .run();
 }
 
 export async function listDeliveries(

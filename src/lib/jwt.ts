@@ -168,7 +168,9 @@ function validateClaims(claims: JwtClaims, env: Env): AuthContext {
 
 export async function verifyJwt(token: string, env: Env): Promise<AuthContext> {
   const parsed = parseToken(token);
-  const verifier = verifiers[parsed.header.alg];
+  const verifier = Object.hasOwn(verifiers, parsed.header.alg)
+    ? verifiers[parsed.header.alg]
+    : undefined;
 
   if (!verifier) {
     throw new JwtVerificationError("JWT algorithm is not supported.");

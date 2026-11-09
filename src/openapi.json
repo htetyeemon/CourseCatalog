@@ -17,8 +17,12 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
     {
-      "url": "https://api.course-catalog.dev",
+      "url": "https://course-catalog.taskflow-123.workers.dev",
       "description": "Production"
+    },
+    {
+      "url": "https://course-catalog-staging.taskflow-123.workers.dev",
+      "description": "Staging"
     },
     {
       "url": "http://127.0.0.1:8787",

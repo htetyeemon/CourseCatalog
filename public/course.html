@@ -67,7 +67,7 @@
       import { api, setToken, getToken, htmlEscape, formatDate } from "/js/api.js";
       import { initTokenBanner, showLoading, showEmpty, showError, toast } from "/js/ui.js";
 
-      initTokenBanner({ containerId: "token-banner" });
+      initTokenBanner({ containerId: "token-banner", onSet: () => { if (courseId) loadCourse(); } });
 
       const params = new URLSearchParams(location.search);
       const courseId = params.get("id");
@@ -106,18 +106,18 @@
           }
 
           renderCourse(course);
+          contentEl.style.display = "block";
           await loadEligibility(course);
         } catch (err) {
           showError("course-error", err.message || "Unable to load course.");
         } finally {
           loadingEl.style.display = "none";
-          contentEl.style.display = "block";
         }
       }
 
       function renderCourse(c) {
         document.title = `${c.code} — Course Catalog`;
-        document.getElementById("course-title").textContent = `${c.code} — ${htmlEscape(c.title)}`;
+        document.getElementById("course-title").textContent = `${c.code} — ${c.title}`;
 
         const badges = document.getElementById("course-badges");
         badges.innerHTML = `
@@ -134,10 +134,10 @@
         `;
 
         const desc = document.getElementById("course-description");
-        desc.textContent = htmlEscape(c.description);
+        desc.textContent = c.description;
 
         const descFull = document.getElementById("course-description-full");
-        descFull.textContent = htmlEscape(c.description);
+        descFull.textContent = c.description;
 
         // Enrichment
         const summaryEl = document.getElementById("course-summary");
@@ -145,17 +145,17 @@
         const sourceEl = document.getElementById("course-source");
 
         if (c.summary) {
-          summaryEl.textContent = htmlEscape(c.summary);
+          summaryEl.textContent = c.summary;
         } else {
-          summaryEl.textContent = "No summary available.";
+          summaryEl.textContent = "Enrichment is stored at publish time but not yet exposed by the Course API.";
         }
 
         const tags = Array.isArray(c.tags) ? c.tags : [];
         tagsEl.innerHTML = tags.map(t => `<span>${htmlEscape(t)}</span>`).join("") || "<span>—</span>";
 
-        const source = c.enrichment_source || "fallback";
-        sourceEl.className = `enrichment__source source--${htmlEscape(source)}`;
-        sourceEl.textContent = `Source: ${source === "ai" ? "Workers AI" : "Deterministic fallback"}`;
+        const source = c.enrichmentSource || c.enrichment_source;
+        sourceEl.className = `enrichment__source source--${htmlEscape(source || "unknown")}`;
+        sourceEl.textContent = source ? `Source: ${source === "ai" ? "Workers AI" : "Deterministic fallback"}` : "";
 
         // Instructors
         const instrEl = document.getElementById("course-instructors");
@@ -235,7 +235,7 @@
         });
       }
 
-      loadCourse();
+      if (courseId) loadCourse();
     </script>
   </body>
 </html>

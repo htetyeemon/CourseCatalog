@@ -57,7 +57,7 @@ Example decoded payload:
 - API audience: `JWT_AUDIENCE` (`catalog-api` by default)
 - Current algorithm: `HS256` with `JWT_SECRET`
 
-The shared HS256 secret is configured with `wrangler secret put JWT_SECRET` and
+The shared HS256 secret is configured with `wrangler secret put JWT_SECRET --env <staging|production>` and
 must never be committed, logged, or returned by an endpoint. For local
 development, put a strong random value in `.dev.vars`.
 

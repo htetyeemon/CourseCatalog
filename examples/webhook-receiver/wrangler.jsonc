@@ -3,9 +3,9 @@
   "name": "webhook-receiver",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-04",
-  "vars": {
-    "WEBHOOK_SIGNING_SECRET": "replace-with-the-subscriptions-signing-secret"
-  },
+  // The subscription signing secret is a secret, not a plain-text var:
+  //   deployed:  wrangler secret put WEBHOOK_SIGNING_SECRET
+  //   local dev: put WEBHOOK_SIGNING_SECRET=... in a .dev.vars file next to this config
   "secrets": {
     "required": ["WEBHOOK_SIGNING_SECRET"]
   }

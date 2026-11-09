@@ -298,7 +298,9 @@ can arrive more than once, including on different delivery IDs.
 | 6 | 2 hours |
 
 After the sixth failed attempt, the delivery is marked `exhausted` and no more
-attempts are made. Delivery records are available through
+attempts are made. Retries are executed by a scheduled job that runs every
+5 minutes, so attempts 2 and 3 can arrive up to 5 minutes later than listed.
+Delivery records are available through
 `GET /v1/webhooks/deliveries` to `catalog_admin` and `service` callers, with
 filters for subscription, event, status, and event type.
 

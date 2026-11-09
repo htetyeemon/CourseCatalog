@@ -82,6 +82,7 @@ async function attemptDelivery(
   try {
     const response = await fetch(url, {
       method: "POST",
+      redirect: "manual",
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "User-Agent": "CourseCatalog-Webhooks/1.0",
@@ -246,16 +247,6 @@ export async function processDueDeliveries(
       continue;
     }
 
-    if (row.attempts >= MAX_ATTEMPTS - 1) {
-      await updateDelivery(DB, deliveryId, {
-        status: "exhausted",
-        attempts: row.attempts + 1,
-        lastError: "max attempts reached",
-      });
-      exhausted += 1;
-      continue;
-    }
-
     const result = await attemptDelivery(subscription.url, subscription.secret, row.event_id, body);
     const attemptNow = nowIso();
 
@@ -296,10 +287,25 @@ export async function processDueDeliveries(
       continue;
     }
 
-    const delay = applyJitter(computeBackoffSeconds(row.attempts + 1));
+    const attempts = row.attempts + 1;
+
+    if (attempts >= MAX_ATTEMPTS) {
+      await updateDelivery(DB, deliveryId, {
+        status: "exhausted",
+        attempts,
+        responseStatus: result.status ?? undefined,
+        lastError: result.error ?? `max attempts reached (last HTTP ${result.status})`,
+        lastAttemptAt: attemptNow,
+        nextAttemptAt: null,
+      });
+      exhausted += 1;
+      continue;
+    }
+
+    const delay = applyJitter(computeBackoffSeconds(attempts));
     await updateDelivery(DB, deliveryId, {
       status: "failed",
-      attempts: row.attempts + 1,
+      attempts,
       responseStatus: result.status ?? undefined,
       lastError: result.error ?? "delivery failed",
       lastAttemptAt: attemptNow,

@@ -24,6 +24,7 @@ import {
   AiEnrichmentProvider,
   DeterministicEnrichmentProvider,
   loadValidCourseIds,
+  type AiRun,
 } from "../lib/enrichment.js";
 import {
   buildSignatureHeader,
@@ -145,11 +146,14 @@ coursesRoute.post(
 
     const validCourseIds = await loadValidCourseIds(c.env.DB);
 
-    const aiRun = ((c.env.AI as { run?: unknown })?.run ??
-      null) as ((model: string, input: { prompt: string }, options?: { signal?: AbortSignal }) => Promise<unknown>) | null;
+    // `run` must stay bound to the AI binding; a detached call throws and would
+    // silently force the deterministic fallback on every publish.
+    const ai = c.env.AI as { run?: (...args: unknown[]) => Promise<unknown> } | undefined;
+    const aiRun: AiRun | null =
+      ai && typeof ai.run === "function" ? (ai.run.bind(ai) as AiRun) : null;
 
     const enrichmentService = new EnrichmentService(
-      new AiEnrichmentProvider(aiRun as unknown as never, validCourseIds),
+      new AiEnrichmentProvider(aiRun, validCourseIds, c.env.AI_MODEL),
       new DeterministicEnrichmentProvider(),
     );
 
@@ -163,7 +167,7 @@ coursesRoute.post(
     const now = new Date().toISOString();
     const tagsJson = JSON.stringify(enrichment.tags);
 
-    await c.env.DB
+    const update = await c.env.DB
       .prepare(
         `UPDATE courses
          SET status = 'published',
@@ -172,9 +176,15 @@ coursesRoute.post(
              tags = ?,
              enrichment_source = ?,
              updated_at = ?
-         WHERE id = ?`,
+         WHERE id = ? AND status = 'draft'`,
       )
-      .bind(now, enrichment.summary, tagsJson, enrichment.source, now, courseId);
+      .bind(now, enrichment.summary, tagsJson, enrichment.source, now, courseId)
+      .run();
+
+    if (update.meta.changes === 0) {
+      // Lost a race with a concurrent publish/archive; that request emitted the event.
+      return apiError(c, 409, "conflict", "Only draft courses can be published.", { courseId });
+    }
 
     const publishedCourse = await getCourse(c.env.DB, courseId, true);
 
@@ -212,6 +222,7 @@ coursesRoute.post(
           subscriptionId: subscription.id,
           eventId,
           eventType: "course.published",
+          requestBody: eventBody,
         }),
       ),
     );

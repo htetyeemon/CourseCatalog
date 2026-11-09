@@ -75,11 +75,14 @@ app.onError((error, c) => {
 
 const handler = {
   fetch: app.fetch,
-  cron: async (_event: unknown, env: AppEnv["Bindings"], ctx: unknown) => {
-    (ctx as { waitUntil: (p: Promise<unknown>) => void }).waitUntil?.(
-      processDueDeliveries(env),
-    );
+  // Cron Triggers (wrangler.jsonc `triggers.crons`) invoke the `scheduled` handler.
+  scheduled(
+    _controller: ScheduledController,
+    env: AppEnv["Bindings"],
+    ctx: ExecutionContext,
+  ): void {
+    ctx.waitUntil(processDueDeliveries(env));
   },
-};
+} satisfies ExportedHandler<AppEnv["Bindings"]>;
 
 export default handler;

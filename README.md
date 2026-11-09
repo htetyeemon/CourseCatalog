@@ -50,81 +50,27 @@ npm run token:dev -- --role catalog_admin --sub ins_01J9ZK5A1B2C3D4E5F6G7H8J01
 
 ## Deployment
 
-### Staging
+The full runbook is in [docs/deployment.md](docs/deployment.md): one-time account
+setup (D1, secrets), migrations, verification, CI/CD, rollback, and operations.
 
-1. Set the staging secret:
-
-```bash
-wrangler secret put JWT_SECRET --env staging
-```
-
-2. Apply D1 migrations to staging:
+Quick reference once an environment is bootstrapped:
 
 ```bash
-npm run migrate:remote -- --env staging
+npx wrangler whoami                       # confirm the Cloudflare account first
+npm run migrate:remote -- --env staging   # apply new D1 migrations (production: --env production)
+npm run deploy:staging                    # deploy staging (production: npm run deploy:prod)
+BASE_URL=https://course-catalog-staging.taskflow-123.workers.dev JWT_SECRET=... npm run smoke:staging
 ```
 
-3. (Optional) Seed staging data:
+| Environment | URL |
+| --- | --- |
+| Staging | https://course-catalog-staging.taskflow-123.workers.dev |
+| Production | https://course-catalog.taskflow-123.workers.dev |
 
-```bash
-npm run seed:remote -- --env staging
-```
-
-4. Deploy to staging:
-
-```bash
-npm run deploy:staging
-```
-
-Equivalent wrangler commands:
-
-```bash
-wrangler secret put JWT_SECRET --env staging
-wrangler d1 migrations apply DB --remote --env staging
-wrangler deploy --env staging
-```
-
-### Production
-
-1. Set the production secret:
-
-```bash
-wrangler secret put JWT_SECRET --env production
-```
-
-2. Apply D1 migrations to production:
-
-```bash
-npm run migrate:remote -- --env production
-```
-
-3. (Optional) Seed production data:
-
-```bash
-npm run seed:remote -- --env production
-```
-
-4. Deploy to production:
-
-```bash
-npm run deploy:prod
-```
-
-Equivalent wrangler commands:
-
-```bash
-wrangler secret put JWT_SECRET --env production
-wrangler d1 migrations apply DB --remote --env production
-wrangler deploy --env production
-```
-
-### Deployment checklist
-
-- [ ] `JWT_SECRET` set for the target environment (`wrangler secret put`)
-- [ ] D1 migrations applied (`wrangler d1 migrations apply DB --remote --env <env>`)
-- [ ] `npm run typecheck` passes
-- [ ] `npm test` passes
-- [ ] `npm run lint:openapi` passes
+Pushes to `main`/`master` deploy staging through
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml); production is a
+manual "Run workflow" of the same workflow. It needs the repository secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Project structure
 
@@ -171,13 +117,14 @@ scripts/
   generate-openapi-json.mjs
   generate-postman-collection.mjs
   mint-dev-token.mjs           # Dev-only JWT minter
-  smoke-test.mjs               # End-to-end staging smoke test
+  smoke-test.mjs               # End-to-end smoke test against a deployed environment
 test/
   helpers/tokens.ts            # JWT minting helpers
   helpers/db.ts                # D1 migration helpers
   api.test.ts                  # Courses, prerequisites, authz, pagination
   publish.test.ts              # Enrichment fallback/AI success
   webhooks.test.ts             # Signature verification, delivery retry
+  scheduled.test.ts            # Cron Trigger handler (webhook retry processing)
   contract.test.ts             # Responses validated against openapi.yaml
   openapi.test.ts              # OpenAPI contract validity
   schemas.test.ts              # Zod schema unit tests
@@ -185,6 +132,7 @@ docs/
   auth.md                      # Authentication and authorization
   webhooks.md                  # Webhook delivery contract
   integration-guide.md         # Partner integration guide
+  deployment.md                # Cloudflare deployment runbook
 ```
 
 ## Testing
@@ -197,9 +145,9 @@ and state is reset between tests.
 npm test
 ```
 
-The D1-backed integration tests (courses, prerequisites, publish, webhooks)
-require the workers pool and run on CI (Linux). Schema and OpenAPI contract
-tests run locally.
+Migrations are read in `vitest.config.ts` and handed to the Workers runtime as
+the `TEST_MIGRATIONS` binding, so the whole suite runs locally on any OS and in
+CI without a `.dev.vars` file.
 
 ## Contract
 

@@ -40,9 +40,11 @@ export function rateLimitMiddleware(
   return async (c, next) => {
     pruneStaleWindows();
 
+    // Cloudflare sets CF-Connecting-IP from the real client connection; clients can
+    // forge X-Forwarded-For, so it is only a fallback for non-Cloudflare environments.
     const ip =
-      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
       c.req.header("cf-connecting-ip") ??
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
       "unknown";
 
     const path = c.req.path;

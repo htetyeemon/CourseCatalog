@@ -1,3 +1,5 @@
+import { setToken, getToken } from "./api.js";
+
 // Shared UI helpers: loading/error states, token banner, page shell.
 
 export function showError(containerId, message) {
@@ -62,11 +64,6 @@ export function initTokenBanner({ onSet, containerId = "token-banner" }) {
     container.id = containerId;
     document.body.insertBefore(container, document.body.firstChild);
   }
-
-  const hasToken = () => {
-    const m = document.querySelector("#token-banner [data-token-meta]");
-    return !!m;
-  };
 
   container.innerHTML = `
     <div class="token-banner">

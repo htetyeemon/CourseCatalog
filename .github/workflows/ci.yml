@@ -14,7 +14,6 @@ jobs:
         working-directory: .
 
     env:
-      JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-secret-do-not-use-in-production-0000000000' }}
       JWT_ISSUER: https://auth.course-catalog.dev
       JWT_AUDIENCE: catalog-api
       NODE_OPTIONS: --max-old-space-size=4096

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterEach } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, afterEach } from "vitest";
 import app from "../src/index.js";
 import { applyTestMigrations, resetTestState, env } from "./helpers/db.js";
 import {
@@ -16,6 +16,18 @@ function request(
   return Promise.resolve(
     app.fetch(new Request("http://localhost" + input, init), env),
   );
+}
+
+// Every endpoint except /v1/health requires a Bearer token; reads use the
+// least-privileged role so they still see only published data.
+function asStudent(input: string, init: RequestInit = {}): Promise<Response> {
+  return request(input, {
+    ...init,
+    headers: {
+      ...authHeaders(env, ROLES.STUDENT),
+      ...((init.headers as Record<string, string> | undefined) ?? {}),
+    },
+  });
 }
 
 async function exec(db: D1Database, sql: string, ...params: unknown[]) {
@@ -145,7 +157,7 @@ describe("Course Catalog API — real D1", () => {
       await insertCourse(env.DB, { code: "CS-DRAFT", status: "draft" });
       await insertCourse(env.DB, { code: "CS-ARCH", status: "archived" });
 
-      const res = await request("/v1/courses?limit=100");
+      const res = await asStudent("/v1/courses?limit=100");
       expect(res.status).toBe(200);
       const body = (await res.json()) as { data: Array<{ status: string }> };
       expect(body.data.length).toBe(1);
@@ -171,7 +183,7 @@ describe("Course Catalog API — real D1", () => {
         await insertCourse(env.DB, { code: `CS-${1000 + i}` });
       }
 
-      const res = await request("/v1/courses?page=1&limit=10&sort=code&order=asc");
+      const res = await asStudent("/v1/courses?page=1&limit=10&sort=code&order=asc");
       expect(res.status).toBe(200);
       const body = (await res.json()) as { data: unknown[]; page: number; limit: number; total: number };
       expect(body.total).toBe(25);
@@ -179,13 +191,13 @@ describe("Course Catalog API — real D1", () => {
       expect(body.page).toBe(1);
       expect(body.limit).toBe(10);
 
-      const res2 = await request("/v1/courses?page=3&limit=10&sort=code&order=asc");
+      const res2 = await asStudent("/v1/courses?page=3&limit=10&sort=code&order=asc");
       const body2 = (await res2.json()) as { data: unknown[] };
       expect(body2.data.length).toBe(5);
     });
 
     it("rejects limit above 100", async () => {
-      const res = await request("/v1/courses?limit=101");
+      const res = await asStudent("/v1/courses?limit=101");
       expect(res.status).toBe(400);
     });
   });
@@ -194,7 +206,7 @@ describe("Course Catalog API — real D1", () => {
   describe("GET /v1/courses?q=", () => {
     const pythonId = "crs_01J9ZK4Q7M2W8N5R3T6Y0B1PY1";
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       await insertCourse(env.DB, {
         id: pythonId,
         code: "CS-101",
@@ -205,21 +217,21 @@ describe("Course Catalog API — real D1", () => {
     });
 
     it("finds course by keyword via FTS5", async () => {
-      const res = await request("/v1/courses?q=python&limit=100");
+      const res = await asStudent("/v1/courses?q=python&limit=100");
       expect(res.status).toBe(200);
       const body = (await res.json()) as { data: Array<{ code: string }> };
       expect(body.data.some((c) => c.code === "CS-101")).toBe(true);
     });
 
     it("survives quotes in search query", async () => {
-      const res = await request(`/v1/courses?q=${encodeURIComponent('" OR 1=1 --')}&limit=100`);
+      const res = await asStudent(`/v1/courses?q=${encodeURIComponent('" OR 1=1 --')}&limit=100`);
       expect(res.status).toBe(200);
       const body = (await res.json()) as { data: unknown[] };
       expect(body.data.length).toBe(0);
     });
 
     it("survives asterisks in search query", async () => {
-      const res = await request(`/v1/courses?q=${encodeURIComponent("Python*")}&limit=100`);
+      const res = await asStudent(`/v1/courses?q=${encodeURIComponent("Python*")}&limit=100`);
       expect(res.status).toBe(200);
     });
   });
@@ -228,7 +240,7 @@ describe("Course Catalog API — real D1", () => {
   describe("GET /v1/courses/{id}", () => {
     let courseId: string;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       courseId = await insertCourse(env.DB, {
         code: "CS-201",
         title: "Data Structures",
@@ -239,20 +251,20 @@ describe("Course Catalog API — real D1", () => {
         email: "ada@example.edu",
       });
       await linkInstructor(env.DB, courseId, insId);
+      await insertCourse(env.DB, { id: "crs_prereq1", code: "CS-101", status: "published" });
       await insertPrerequisite(env.DB, courseId, "crs_prereq1", {
         isRequired: true,
         minimumGrade: 60,
       });
-      await insertCourse(env.DB, { id: "crs_prereq1", code: "CS-101", status: "published" });
     });
 
     it("returns course with instructors and prerequisites", async () => {
-      const res = await request(`/v1/courses/${courseId}`);
+      const res = await asStudent(`/v1/courses/${courseId}`);
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        data: Array<{ instructors: any[]; prerequisites: any[]; code: string }>;
+        data: { instructors: any[]; prerequisites: any[]; code: string };
       };
-      const first = body.data[0];
+      const first = body.data;
       expect(first?.code).toBe("CS-201");
       expect(first?.instructors.length).toBe(1);
       expect(first?.instructors[0]?.displayName).toBe("Dr. Ada");
@@ -261,7 +273,7 @@ describe("Course Catalog API — real D1", () => {
     });
 
     it("returns 404 error envelope for unknown id", async () => {
-      const res = await request("/v1/courses/crs_DOESNOTEXIST00000000");
+      const res = await asStudent("/v1/courses/crs_DOESNOTEXIST00000000");
       expect(res.status).toBe(404);
       const body = (await res.json()) as { error: { code: string; message: string; requestId: string } };
       expect(body.error.code).toBe("not_found");
@@ -269,7 +281,7 @@ describe("Course Catalog API — real D1", () => {
     });
 
     it("returns 400 for malformed id", async () => {
-      const res = await request("/v1/courses/not-a-course");
+      const res = await asStudent("/v1/courses/not-a-course");
       expect(res.status).toBe(400);
     });
   });
@@ -343,7 +355,7 @@ describe("Course Catalog API — real D1", () => {
     let courseA: string;
     let courseB: string;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       courseA = await insertCourse(env.DB, { code: "CS-A", status: "published" });
       courseB = await insertCourse(env.DB, { code: "CS-B", status: "published" });
       // A depends on B
@@ -395,7 +407,7 @@ describe("Course Catalog API — real D1", () => {
     let courseId: string;
     let prereqId: string;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       courseId = await insertCourse(env.DB, { code: "CS-TARGET", status: "published" });
       prereqId = await insertCourse(env.DB, { code: "CS-PREQ", status: "published" });
       await insertPrerequisite(env.DB, courseId, prereqId, { isRequired: true });

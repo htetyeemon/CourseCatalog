@@ -48,7 +48,7 @@ webhooksRoute.post(
 
 webhooksRoute.get(
   "/subscriptions",
-  requireRole(...READ_ROLES),
+  requireRole(...WRITE_ROLES),
   async (c) => {
     const parsed = ListSubscriptionsQuerySchema.safeParse(
       Object.fromEntries(new URL(c.req.url).searchParams),

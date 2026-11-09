@@ -14,36 +14,23 @@ export interface LogRecord {
   message: string;
 }
 
-function redact(value: unknown): unknown {
-  if (value === null || value === undefined) {
-    return value;
-  }
+const sensitiveKey = /authorization|cookie|secret|token|jwt|password/i;
+// Bearer tokens / compact JWTs that end up inside free-text fields.
+const tokenPattern = /(?:Bearer\s+)?eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
 
+function redact(value: unknown): unknown {
   if (typeof value === "string") {
-    // Never log Authorization headers or JWT fragments.
-    return "[redacted]";
+    return value.replace(tokenPattern, "[redacted]");
   }
 
   if (Array.isArray(value)) {
     return value.map(redact);
   }
 
-  if (typeof value === "object") {
+  if (value !== null && typeof value === "object") {
     const redacted: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      const lower = key.toLowerCase();
-      if (
-        lower.includes("authorization") ||
-        lower.includes("cookie") ||
-        lower.includes("secret") ||
-        lower.includes("token") ||
-        lower.includes("jwt") ||
-        lower.includes("password")
-      ) {
-        redacted[key] = "[redacted]";
-      } else {
-        redacted[key] = redact(val);
-      }
+      redacted[key] = sensitiveKey.test(key) ? "[redacted]" : redact(val);
     }
     return redacted;
   }

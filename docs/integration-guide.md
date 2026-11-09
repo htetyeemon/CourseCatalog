@@ -9,9 +9,9 @@ support contacts.
 
 | Environment | Base URL | Notes |
 | --- | --- | --- |
-| Production | `https://api.course-catalog.dev` | Serves the production Worker. |
-| Staging | `https://course-catalog-staging.example.com` | Pre-production mirror; data resets on deploy. |
-| Local development | `http://127.0.0.1:8787` | Run `npm run dev` after `wrangler install` and secrets setup. |
+| Production | `https://course-catalog.taskflow-123.workers.dev` | Production Worker. The custom domain `api.course-catalog.dev` is not configured yet. |
+| Staging | `https://course-catalog-staging.taskflow-123.workers.dev` | Pre-production mirror with sample data; data persists across deploys. |
+| Local development | `http://127.0.0.1:8787` | Run `npm run dev` after `npm install`, `npm run migrate:local`, and `.dev.vars` setup. |
 
 All routes are served under `/v1`. Health is public: `GET /v1/health`.
 
@@ -69,7 +69,7 @@ Set `CATALOG_TOKEN` to your JWT before running examples:
 
 ```bash
 export CATALOG_TOKEN="<your-jwt>"
-export BASE_URL="https://api.course-catalog.dev"
+export BASE_URL="https://course-catalog.taskflow-123.workers.dev"
 ```
 
 ### Courses
@@ -436,4 +436,4 @@ when reporting issues.
 - Postman/Bruno collection: `postman_collection.json` (generated from
   `openapi.yaml` via `npm run collection:postman`).
 - Dev token minting: `npm run token:dev`.
-- Smoke test (staging): `JWT_SECRET=... npm run smoke:staging`.
+- Smoke test (staging): `BASE_URL=https://course-catalog-staging.taskflow-123.workers.dev JWT_SECRET=... npm run smoke:staging`.

@@ -1,8 +1,6 @@
-import { describe, expect, it, beforeAll, afterEach } from "vitest";
-import { readD1Migrations } from "@cloudflare/vitest-plugin";
-import { applyD1Migrations, reset } from "cloudflare:test";
-import { env } from "cloudflare:workers";
-import Ajv from "ajv";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { applyTestMigrations, resetTestState, env } from "./helpers/db.js";
+import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import YAML from "yaml";
 import app from "../src/index.js";
@@ -14,6 +12,7 @@ addFormats(ajv);
 
 // Load the OpenAPI document and compile schemas for key responses.
 const document = YAML.parse(openapiSource as string) as Record<string, unknown>;
+const validators = new Map<string, ValidateFunction>();
 
 function request(
   input: string,
@@ -44,7 +43,7 @@ async function insertCourse(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     id,
-    overrides.code ?? `CS-CT${Math.floor(Math.random() * 9000) + 1000}`,
+    overrides.code ?? `CS-${Math.floor(Math.random() * 9000) + 1000}`,
     overrides.title ?? "Conformance Test Course",
     overrides.description ?? "A course for conformance testing.",
     overrides.department ?? "Computer Science",
@@ -53,7 +52,8 @@ async function insertCourse(
     overrides.status ?? "published",
     now,
     now,
-  );
+  )
+  .run();
   return id;
 }
 
@@ -65,14 +65,16 @@ async function insertInstructor(
   await env.DB.prepare(
     `INSERT INTO instructors (id, display_name, email, department, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).bind(id, overrides.displayName ?? "Dr. CT", `${id}@example.edu`, "Computer Science", now, now);
+  ).bind(id, overrides.displayName ?? "Dr. CT", `${id}@example.edu`, "Computer Science", now, now)
+  .run();
   return id;
 }
 
 async function linkInstructor(courseId: string, instructorId: string) {
   await env.DB.prepare(
     `INSERT INTO course_instructors (course_id, instructor_id, position) VALUES (?, ?, 0)`,
-  ).bind(courseId, instructorId);
+  ).bind(courseId, instructorId)
+  .run();
 }
 
 function validateAgainstSchema(
@@ -86,7 +88,16 @@ function validateAgainstSchema(
   if (!schema) {
     return { valid: false, errors: [`Schema ${schemaName} not found in openapi.yaml`] };
   }
-  const validate = ajv.compile(schema);
+  // Component schemas reference each other through "#/components/schemas/...", so the
+  // validator is compiled from a wrapper that carries the whole components tree.
+  let validate = validators.get(schemaName);
+  if (!validate) {
+    validate = ajv.compile({
+      $ref: `#/components/schemas/${schemaName}`,
+      components: { schemas: components },
+    });
+    validators.set(schemaName, validate);
+  }
   const valid = validate(value);
   const errors = (validate.errors ?? []).map((e) => `${e.instancePath ?? ""} ${e.message ?? ""}`);
   return { valid, errors };
@@ -97,20 +108,19 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
   let studentToken: string;
   let courseId: string;
 
-  beforeAll(async () => {
-    const migrations = await readD1Migrations("./migrations");
-    await applyD1Migrations(env.DB, migrations);
+  beforeEach(async () => {
+    await applyTestMigrations();
 
     adminToken = mintToken(env, { role: ROLES.CATALOG_ADMIN });
     studentToken = mintToken(env, { role: ROLES.STUDENT });
 
-    courseId = await insertCourse({ code: "CS-CT01", status: "published" });
+    courseId = await insertCourse({ code: "CS-901", status: "published" });
     const insId = await insertInstructor({ displayName: "Dr. CT" });
     await linkInstructor(courseId, insId);
   });
 
   afterEach(async () => {
-    await reset();
+    await resetTestState();
   });
 
   it("GET /v1/health returns the HealthResponse schema", async () => {
@@ -135,14 +145,14 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
     ).toBe(true);
   });
 
-  it("GET /v1/courses/{id} returns CourseDetailResponse schema with instructors and prerequisites", async () => {
+  it("GET /v1/courses/{id} returns CourseResponse schema with instructors and prerequisites", async () => {
     const res = await request(
       `/v1/courses/${courseId}`,
       { headers: authHeaders(env, ROLES.STUDENT) },
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    const result = validateAgainstSchema("CourseDetailResponse", body);
+    const result = validateAgainstSchema("CourseResponse", body);
     expect(result.valid, result.errors.join("; ")).toBe(true);
     expect(Array.isArray(body.data.instructors)).toBe(true);
     expect(Array.isArray(body.data.prerequisites)).toBe(true);
@@ -166,7 +176,7 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        code: "CS-CT02",
+        code: "CS-902",
         title: "Unauthorized Course",
         description: "Should not be created.",
         credits: 3,
@@ -189,7 +199,7 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        code: "CS-CT02",
+        code: "CS-902",
         title: "Forbidden Course",
         description: "Should not be created.",
         credits: 3,
@@ -212,7 +222,7 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        code: "CS-CT02",
+        code: "CS-902",
         title: "Admin Created Course",
         description: "Created via conformance test.",
         credits: 4,
@@ -225,7 +235,7 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
     const body = (await res.json()) as any;
     const result = validateAgainstSchema("CourseResponse", body);
     expect(result.valid, result.errors.join("; ")).toBe(true);
-    expect(body.data.code).toBe("CS-CT02");
+    expect(body.data.code).toBe("CS-902");
   });
 
   it("POST /v1/courses invalid input returns 422 validation_failed envelope", async () => {
@@ -253,7 +263,7 @@ describe("Contract conformance (responses match openapi.yaml)", () => {
   });
 
   it("POST /v1/prerequisites/check returns PrerequisiteCheckResponse schema", async () => {
-    const prereqId = await insertCourse({ code: "CS-CTPREQ", status: "published" });
+    const prereqId = await insertCourse({ code: "CS-950", status: "published" });
 
     const res = await request("/v1/prerequisites/check", {
       method: "POST",

@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "https://api.course-catalog.dev"
+      "value": "https://course-catalog.taskflow-123.workers.dev"
     },
     {
       "key": "catalog_token",
@@ -49,9 +49,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -77,9 +77,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -114,9 +114,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses/:courseId",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses/:courseId",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -143,9 +143,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses/:courseId",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses/:courseId",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -181,9 +181,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses/:courseId/publish",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses/:courseId/publish",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -216,9 +216,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/instructors",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/instructors",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -244,9 +244,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/instructors/:instructorId",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/instructors/:instructorId",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -278,9 +278,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses/:courseId/prerequisites",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses/:courseId/prerequisites",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -317,9 +317,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/prerequisites/check",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/prerequisites/check",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -355,9 +355,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/courses/:courseId/eligibility-check",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/courses/:courseId/eligibility-check",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -399,9 +399,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/webhooks/subscriptions",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/webhooks/subscriptions",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -437,9 +437,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/webhooks/deliveries",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/webhooks/deliveries",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",
@@ -471,9 +471,9 @@
               }
             ],
             "url": {
-              "raw": "https://api.course-catalog.dev/v1/health",
+              "raw": "https://course-catalog.taskflow-123.workers.dev/v1/health",
               "host": [
-                "api.course-catalog.dev"
+                "course-catalog.taskflow-123.workers.dev"
               ],
               "path": [
                 "v1",

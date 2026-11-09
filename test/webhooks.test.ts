@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterEach, vi } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import app from "../src/index.js";
 import { buildSignatureHeader, processDueDeliveries } from "../src/lib/delivery.js";
@@ -39,7 +39,8 @@ async function insertSubscription(
     overrides.active ?? true ? 1 : 0,
     now,
     now,
-  );
+  )
+  .run();
   return id;
 }
 
@@ -104,28 +105,29 @@ async function insertCourseHelper(
     overrides.status ?? "published",
     now,
     now,
-  );
+  )
+  .run();
   const insId = `ins_${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`;
   await env.DB.prepare(
     `INSERT INTO instructors (id, display_name, email, department, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).bind(insId, "Dr. Wh", `${insId}@example.edu`, "Computer Science", now, now);
+  ).bind(insId, "Dr. Wh", `${insId}@example.edu`, "Computer Science", now, now)
+  .run();
   await env.DB.prepare(
     `INSERT INTO course_instructors (course_id, instructor_id, position) VALUES (?, ?, 0)`,
-  ).bind(id, insId);
+  ).bind(id, insId)
+  .run();
   return id;
 }
 
 describe("Course Catalog — webhooks", () => {
   beforeAll(async () => {
-    const { readD1Migrations } = await import("@cloudflare/vitest-plugin");
-    const { applyD1Migrations } = await import("cloudflare:test");
-    const migrations = await readD1Migrations("./migrations");
-    await applyD1Migrations(env.DB, migrations);
+    await applyTestMigrations();
   });
 
   afterEach(async () => {
     await resetTestState();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -166,8 +168,8 @@ describe("Course Catalog — webhooks", () => {
     let courseId: string;
     let subId: string;
 
-    beforeAll(async () => {
-      courseId = await insertCourseHelper({ status: "published" });
+    beforeEach(async () => {
+      courseId = await insertCourseHelper({ status: "draft" });
       subId = await insertSubscription({ url: "https://example.com/webhook" });
     });
 
@@ -194,13 +196,14 @@ describe("Course Catalog — webhooks", () => {
       expect(d.attempts).toBe(1);
       expect(d.next_attempt_at).not.toBeNull();
 
-      // Force the next retry to be due immediately.
-      await env.DB.prepare(
-        `UPDATE webhook_deliveries SET next_attempt_at = ? WHERE subscription_id = ?`,
-      ).bind(new Date(0).toISOString(), subId);
-
-      // Run retries until exhausted.
+      // Run retries until exhausted, forcing each scheduled retry to be due immediately
+      // (the real schedule backs off from 30 seconds up to 2 hours).
       for (let i = 0; i < 10; i += 1) {
+        await env.DB.prepare(
+          `UPDATE webhook_deliveries SET next_attempt_at = ? WHERE subscription_id = ? AND status = 'failed'`,
+        )
+          .bind(new Date(0).toISOString(), subId)
+          .run();
         await processDueDeliveries({ DB: env.DB } as unknown as { DB: typeof env.DB });
         const cur = await env.DB.prepare(
           `SELECT status, attempts FROM webhook_deliveries WHERE subscription_id = ?`,

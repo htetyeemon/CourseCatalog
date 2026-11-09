@@ -136,12 +136,12 @@
       import { api, setToken, getToken, htmlEscape, formatDate } from "/js/api.js";
       import { initTokenBanner, showLoading, showEmpty, showError, toast } from "/js/ui.js";
 
-      initTokenBanner({ containerId: "token-banner" });
+      initTokenBanner({ containerId: "token-banner", onSet: () => { loadCourseList(); loadDeliveries(); } });
 
       window.openTab = (name) => {
         document.querySelectorAll(".tab").forEach((t) => (t.style.display = "none"));
         document.querySelectorAll('[role="tab"]').forEach((b) => b.setAttribute("aria-selected", "false"));
-        const panel = document.getElementById(`${name}-panel`);
+        const panel = document.getElementById(`tab-${name}-panel`);
         const btn = document.getElementById(`tab-${name}`);
         if (panel) panel.style.display = "block";
         if (btn) btn.setAttribute("aria-selected", "true");
@@ -152,43 +152,63 @@
       const courseResult = document.getElementById("course-form-result");
       const courseListEl = document.getElementById("course-list");
 
+      // Courses are kept in memory and rows carry only an id, so API data is never
+      // interpolated into HTML or inline JavaScript.
+      const coursesById = new Map();
+
       async function loadCourseList() {
         const res = await api("/courses?limit=100");
         if (!res.ok) {
           courseListEl.innerHTML = `<p style="color:#f87171;">Unable to load courses (${res.status}).</p>`;
           return;
         }
-        const data = res.body;
-        const courses = data?.data || [];
+        const courses = res.body?.data || [];
+        coursesById.clear();
+        courseListEl.innerHTML = "";
         if (courses.length === 0) {
           courseListEl.innerHTML = "<p>No courses.</p>";
           return;
         }
-        courseListEl.innerHTML = courses.map(c => `
-          <div style="padding:0.4rem 0.6rem; border-bottom:1px solid #334155; cursor:pointer;" onclick="loadCourseIntoEditor('${htmlEscape(c.id)}', '${htmlEscape(c.code)}', '${htmlEscape(c.title)}', '${htmlEscape(c.description)}', '${htmlEscape(c.department)}', '${htmlEscape(c.level)}', ${Number(c.credits || 0)}, '${htmlEscape(c.status)}', '${htmlEscape(c.instructorIds?.join(", ") || "")}')">
-            <div style="font-weight:700;">${htmlEscape(c.code)} — ${htmlEscape(c.title)}</div>
-            <div style="font-size:0.85rem;color:var(--muted);">${htmlEscape(c.id)} · ${htmlEscape(c.status)} · ${htmlEscape(c.department)}</div>
-          </div>
-        `).join("");
+        for (const c of courses) {
+          coursesById.set(c.id, c);
+          const row = document.createElement("div");
+          row.dataset.id = c.id;
+          row.style.cssText = "padding:0.4rem 0.6rem; border-bottom:1px solid #334155; cursor:pointer;";
+          const title = document.createElement("div");
+          title.style.fontWeight = "700";
+          title.textContent = `${c.code} — ${c.title}`;
+          const meta = document.createElement("div");
+          meta.style.cssText = "font-size:0.85rem;color:var(--muted);";
+          meta.textContent = `${c.id} · ${c.status} · ${c.department}`;
+          row.append(title, meta);
+          courseListEl.appendChild(row);
+        }
       }
 
-      window.loadCourseIntoEditor = (id, code, title, desc, dept, level, credits, status, instructors) => {
-        document.getElementById("course-edit-id").value = id;
-        document.getElementById("edit-course-id").value = id;
-        document.getElementById("form-code").value = code;
-        document.getElementById("form-title").value = title;
-        document.getElementById("form-description").value = desc;
-        document.getElementById("form-department").value = dept;
-        document.getElementById("form-level").value = level;
-        document.getElementById("form-credits").value = credits;
-        document.getElementById("form-instructors").value = instructors;
+      courseListEl.addEventListener("click", (event) => {
+        const row = event.target.closest("[data-id]");
+        const course = row ? coursesById.get(row.dataset.id) : undefined;
+        if (course) loadCourseIntoEditor(course);
+      });
+
+      function loadCourseIntoEditor(c) {
+        document.getElementById("course-edit-id").value = c.id;
+        document.getElementById("edit-course-id").value = c.id;
+        document.getElementById("form-code").value = c.code;
+        document.getElementById("form-title").value = c.title;
+        document.getElementById("form-description").value = c.description;
+        document.getElementById("form-department").value = c.department;
+        document.getElementById("form-level").value = c.level;
+        document.getElementById("form-credits").value = c.credits;
+        document.getElementById("form-instructors").value = (c.instructorIds || []).join(", ");
         document.getElementById("course-form-result").textContent = "";
         openTab("courses");
-      };
+      }
 
       window.resetCourseForm = () => {
         courseForm.reset();
         document.getElementById("course-edit-id").value = "";
+        document.getElementById("edit-course-id").value = "";
         courseResult.textContent = "";
       };
 
@@ -209,7 +229,7 @@
       courseForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         courseResult.textContent = "";
-        const id = document.getElementById("course-edit-id").value.trim();
+        const id = (document.getElementById("edit-course-id").value || document.getElementById("course-edit-id").value).trim();
         const instructorsRaw = document.getElementById("form-instructors").value.trim();
         const instructorIds = instructorsRaw ? instructorsRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
         const body = {
@@ -295,7 +315,6 @@
         resultEl.innerHTML = `
           <p style="color:var(--success);">Published.</p>
           <p>${htmlEscape(course?.code || courseId)} — status ${htmlEscape(course?.status || "")}</p>
-          <p>Enrichment source: <span class="badge badge--${htmlEscape(course?.enrichment_source || "fallback")}">${htmlEscape(course?.enrichment_source || "fallback")}</span></p>
         `;
         toast("Course published.");
       };
