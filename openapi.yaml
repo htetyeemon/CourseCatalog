@@ -164,7 +164,7 @@ paths:
                 $ref: '#/components/schemas/CourseResponse'
               examples:
                 default:
-                  $ref: '#/components/examples/CourseResponse'
+                  $ref: '#/components/examples/CourseDetailResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -375,6 +375,51 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/prerequisites/check:
+    post:
+      tags: [Prerequisites]
+      operationId: checkPrerequisiteCompletion
+      summary: Check direct prerequisites against completed courses
+      description: |
+        Evaluates a stateless eligibility check from the supplied completed
+        course IDs. Only direct prerequisite rules marked required are
+        considered; optional prerequisites never block eligibility. Grades and
+        student records are not read. All authenticated roles may call this
+        operation.
+      x-required-roles: [student, instructor, catalog_admin, service]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrerequisiteCheckRequest'
+            examples:
+              default:
+                $ref: '#/components/examples/PrerequisiteCheckRequest'
+      responses:
+        '200':
+          description: The direct-prerequisite eligibility result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrerequisiteCheckResponse'
+              examples:
+                default:
+                  $ref: '#/components/examples/PrerequisiteCheckResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/courses/{courseId}/eligibility-check:
     post:
       tags: [Prerequisites]
@@ -383,7 +428,11 @@ paths:
       description: |
         Evaluates whether a student satisfies the prerequisites for a course.
         Students may only check their own `studentId`; instructors, catalog
-        administrators, and services may check any student.
+        administrators, and services may check any student. This
+        student-record-based operation remains part of the long-term contract
+        but is not implemented by the current Worker. Use
+        `POST /v1/prerequisites/check` for stateless direct-prerequisite
+        checks.
       x-required-roles: [student, instructor, catalog_admin, service]
       parameters:
         - $ref: '#/components/parameters/CourseIdPath'
@@ -585,7 +634,9 @@ components:
       bearerFormat: JWT
       description: |
         Bearer JWT issued by the catalog identity provider. Required claims are
-        `sub`, `role`, `iss`, and `exp`. See `docs/auth.md`.
+        `sub`, `role`, `iss`, and `exp`. Local development uses HS256 with
+        `JWT_SECRET`; production should migrate to asymmetric keys via JWKS.
+        See `docs/auth.md`.
   parameters:
     Page:
       name: page
@@ -911,6 +962,18 @@ components:
           maxItems: 20
           items:
             $ref: '#/components/schemas/InstructorId'
+        instructors:
+          type: array
+          description: Full instructor records. Present on single-course responses.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Instructor'
+        prerequisites:
+          type: array
+          description: Prerequisite rules. Present on single-course responses.
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/PrerequisiteRule'
         createdAt:
           type: string
           format: date-time
@@ -1115,6 +1178,34 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/PrerequisiteSet'
+    PrerequisiteCheckRequest:
+      type: object
+      additionalProperties: false
+      required: [courseId]
+      properties:
+        courseId:
+          $ref: '#/components/schemas/CourseId'
+        completedCourseIds:
+          type: array
+          description: Course IDs the caller has completed. Defaults to an empty list.
+          maxItems: 100
+          default: []
+          items:
+            $ref: '#/components/schemas/CourseId'
+    PrerequisiteCheckResponse:
+      type: object
+      additionalProperties: false
+      required: [eligible, missing]
+      properties:
+        eligible:
+          type: boolean
+          description: True when every required direct prerequisite is completed.
+        missing:
+          type: array
+          description: Required direct prerequisite course IDs that are not completed.
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/CourseId'
     EligibilityCheckRequest:
       type: object
       additionalProperties: false
@@ -1392,6 +1483,8 @@ components:
         - forbidden
         - not_found
         - conflict
+        - prerequisite_cycle
+        - prerequisite_self_reference
         - rate_limited
         - internal_error
         - service_unavailable
@@ -1465,6 +1558,37 @@ components:
             - ins_01J9ZK5A1B2C3D4E5F6G7H8J9K
           createdAt: '2026-01-15T09:00:00Z'
           updatedAt: '2026-02-01T12:30:00Z'
+    CourseDetailResponse:
+      summary: A course resource with joined instructors and prerequisites
+      value:
+        data:
+          id: crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D
+          code: CS-201
+          title: Data Structures and Algorithms
+          description: Core data structures, algorithm analysis, and implementation techniques.
+          status: published
+          credits: 4
+          level: intermediate
+          department: Computer Science
+          instructorIds:
+            - ins_01J9ZK5A1B2C3D4E5F6G7H8J9K
+          instructors:
+            - id: ins_01J9ZK5A1B2C3D4E5F6G7H8J9K
+              displayName: Dr. Ada Lovelace
+              email: ada@example.edu
+              department: Computer Science
+              bio: Teaching algorithms and programming foundations.
+              courseIds:
+                - crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D
+              createdAt: '2026-01-10T08:00:00Z'
+              updatedAt: '2026-02-10T10:15:00Z'
+          prerequisites:
+            - courseId: crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E
+              required: true
+              minimumGrade: 60
+          createdAt: '2026-01-15T09:00:00Z'
+          updatedAt: '2026-03-01T15:00:00Z'
+          publishedAt: '2026-03-01T15:00:00Z'
     PublishedCourseResponse:
       summary: A published course resource
       value:
@@ -1570,6 +1694,18 @@ components:
             - courseId: crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F
               required: false
           updatedAt: '2026-03-01T15:00:00Z'
+    PrerequisiteCheckRequest:
+      summary: Check completed courses against direct prerequisites
+      value:
+        courseId: crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D
+        completedCourseIds:
+          - crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E
+    PrerequisiteCheckResponse:
+      summary: A direct-prerequisite eligibility result
+      value:
+        eligible: false
+        missing:
+          - crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F
     EligibilityCheckRequest:
       summary: Check a student's eligibility
       value:

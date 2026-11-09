@@ -67,6 +67,8 @@ export const ErrorCodeSchema = z.enum([
   "forbidden",
   "not_found",
   "conflict",
+  "prerequisite_cycle",
+  "prerequisite_self_reference",
   "rate_limited",
   "internal_error",
   "service_unavailable",
@@ -86,3 +88,6 @@ export const ErrorResponseSchema = z
     error: ErrorSchema,
   })
   .strict();
+
+export type Role = z.infer<typeof RoleSchema>;
+export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

@@ -1,0 +1,490 @@
+{
+  "info": {
+    "name": "Course Catalog API",
+    "description": "Postman/Bruno collection for the Course Catalog API. Generated from openapi.yaml.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.course-catalog.dev"
+    },
+    {
+      "key": "catalog_token",
+      "value": ""
+    },
+    {
+      "key": "course_id",
+      "value": ""
+    },
+    {
+      "key": "instructor_id",
+      "value": ""
+    },
+    {
+      "key": "subscription_id",
+      "value": ""
+    },
+    {
+      "key": "event_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "List or search courses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Returns a paginated list of courses. The `q` parameter searches course\ncode, title, and description. All authenticated roles may call this\noperation.\n"
+        },
+        {
+          "name": "Create a course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ],
+              "protocol": "https"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"$ref\": \"#/components/schemas/CreateCourseRequest\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Creates a draft course. Only catalog administrators and services may create courses."
+        },
+        {
+          "name": "Get a course",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses/:courseId",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                ":courseId"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Returns a single course by ID. All authenticated roles may call this operation."
+        },
+        {
+          "name": "Update a course",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses/:courseId",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                ":courseId"
+              ],
+              "protocol": "https"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"$ref\": \"#/components/schemas/UpdateCourseRequest\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Applies a partial update to a course. At least one field must be\npresent. Publishing is a separate operation. Only catalog\nadministrators and services may update courses.\n"
+        },
+        {
+          "name": "Publish a course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses/:courseId/publish",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                ":courseId",
+                "publish"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Publishes a draft course and emits a `course.published` version `1.0`\nwebhook event. A published course requires at least one instructor and\nno unsatisfied catalog validation errors. Only catalog administrators\nand services may publish courses.\n"
+        }
+      ]
+    },
+    {
+      "name": "Instructors",
+      "item": [
+        {
+          "name": "List or search instructors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/instructors",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "instructors"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Returns a paginated list of instructors. All authenticated roles may call this operation."
+        },
+        {
+          "name": "Get an instructor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/instructors/:instructorId",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "instructors",
+                ":instructorId"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Returns a single instructor by ID. All authenticated roles may call this operation."
+        }
+      ]
+    },
+    {
+      "name": "Prerequisites",
+      "item": [
+        {
+          "name": "Replace course prerequisites",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses/:courseId/prerequisites",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                ":courseId",
+                "prerequisites"
+              ],
+              "protocol": "https"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"$ref\": \"#/components/schemas/PutPrerequisitesRequest\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Replaces the complete prerequisite set for a course. The operation is\natomic. A course cannot list itself, duplicate a course, or introduce a\nprerequisite cycle. Only catalog administrators and services may update\nprerequisites.\n"
+        },
+        {
+          "name": "Check direct prerequisites against completed courses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/prerequisites/check",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "prerequisites",
+                "check"
+              ],
+              "protocol": "https"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"$ref\": \"#/components/schemas/PrerequisiteCheckRequest\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Evaluates a stateless eligibility check from the supplied completed\ncourse IDs. Only direct prerequisite rules marked required are\nconsidered; optional prerequisites never block eligibility. Grades and\nstudent records are not read. All authenticated roles may call this\noperation.\n"
+        },
+        {
+          "name": "Check prerequisite eligibility",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/courses/:courseId/eligibility-check",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                ":courseId",
+                "eligibility-check"
+              ],
+              "protocol": "https"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"$ref\": \"#/components/schemas/EligibilityCheckRequest\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Evaluates whether a student satisfies the prerequisites for a course.\nStudents may only check their own `studentId`; instructors, catalog\nadministrators, and services may check any student. This\nstudent-record-based operation remains part of the long-term contract\nbut is not implemented by the current Worker. Use\n`POST /v1/prerequisites/check` for stateless direct-prerequisite\nchecks.\n"
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Create a webhook subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/webhooks/subscriptions",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                "subscriptions"
+              ],
+              "protocol": "https"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"$ref\": \"#/components/schemas/CreateWebhookSubscriptionRequest\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Registers an HTTPS endpoint for catalog events. The response includes a\n`signingSecret` exactly once; store it securely and use it to verify\n`X-Catalog-Signature`. Only catalog administrators and services may\ncreate subscriptions.\n"
+        },
+        {
+          "name": "List webhook deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/webhooks/deliveries",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                "deliveries"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Returns a paginated list of webhook delivery attempts. Filter by\nsubscription, event, status, or event type. Only catalog administrators\nand services may inspect deliveries.\n"
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Service health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{catalog_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.course-catalog.dev/v1/health",
+              "host": [
+                "api.course-catalog.dev"
+              ],
+              "path": [
+                "v1",
+                "health"
+              ],
+              "protocol": "https"
+            }
+          },
+          "description": "Returns service and dependency health. This operation is public and\ndoes not require a Bearer token.\n"
+        }
+      ]
+    }
+  ]
+}

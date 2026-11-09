@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Course Catalog — Admin Console</title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <h1>Admin Console</h1>
+    <div id="token-banner"></div>
+
+    <nav class="admin-nav" role="tablist" aria-label="Admin sections">
+      <button type="button" role="tab" aria-selected="true" id="tab-courses" onclick="openTab('courses')">Courses</button>
+      <button type="button" role="tab" aria-selected="false" id="tab-prereq" onclick="openTab('prereq')">Prerequisites</button>
+      <button type="button" role="tab" aria-selected="false" id="tab-publish" onclick="openTab('publish')">Publish</button>
+      <button type="button" role="tab" aria-selected="false" id="tab-deliveries" onclick="openTab('deliveries')">Deliveries</button>
+    </nav>
+
+    <!-- Courses tab -->
+    <section id="tab-courses-panel" class="tab active" role="tabpanel" aria-labelledby="tab-courses">
+      <div class="form-grid">
+        <div class="card">
+          <h3>Create / Edit Course</h3>
+          <form id="course-form" novalidate>
+            <input type="hidden" id="course-edit-id" />
+            <label>Course ID (for edit)</label>
+            <input type="text" id="edit-course-id" placeholder="e.g. crs_abc123... leave blank to create" />
+
+            <label>Code <span style="color:#f87171;">*</span></label>
+            <input type="text" id="form-code" placeholder="CS-101" required />
+
+            <label>Title <span style="color:#f87171;">*</span></label>
+            <input type="text" id="form-title" required />
+
+            <label>Description <span style="color:#f87171;">*</span></label>
+            <textarea id="form-description" rows="3" required></textarea>
+
+            <label>Department <span style="color:#f87171;">*</span></label>
+            <input type="text" id="form-department" required />
+
+            <label>Level <span style="color:#f87171;">*</span></label>
+            <select id="form-level" required>
+              <option value="">Select</option>
+              <option value="introductory">Introductory</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+
+            <label>Credits <span style="color:#f87171;">*</span></label>
+            <input type="number" id="form-credits" min="0" max="30" required />
+
+            <label>Instructor IDs (comma-separated, ins_…)</label>
+            <input type="text" id="form-instructors" placeholder="ins_abc, ins_def" />
+
+            <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+              <button type="submit">Save Course</button>
+              <button type="button" class="secondary" onclick="resetCourseForm()">Reset</button>
+            </div>
+          </form>
+          <div id="course-form-result" style="margin-top:0.5rem;"></div>
+        </div>
+
+        <div class="card">
+          <h3>All Courses</h3>
+          <div id="course-list" style="max-height:300px; overflow:auto; border:1px solid #334155; border-radius:var(--radius); padding:0.5rem; background:#0f172a;"></div>
+          <p class="inline-note">Click a course to load it into the editor above.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Prerequisites tab -->
+    <section id="tab-prereq-panel" class="tab" role="tabpanel" aria-labelledby="tab-prereq">
+      <div class="form-grid">
+        <div class="card">
+          <h3>Edit Prerequisites</h3>
+          <label>Course ID</label>
+          <input type="text" id="prereq-course-id" placeholder="crs_…" />
+          <p class="inline-note">Replace the full prerequisite set. Leave the list empty to clear all prerequisites.</p>
+          <div id="prereq-rows" class="prereq-editor"></div>
+          <div style="margin-top:0.5rem;">
+            <button type="button" onclick="addPrereqRow()">+ Add prerequisite</button>
+            <button type="button" onclick="savePrerequisites()">Save Prerequisites</button>
+          </div>
+          <div id="prereq-result" style="margin-top:0.5rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Publish tab -->
+    <section id="tab-publish-panel" class="tab" role="tabpanel" aria-labelledby="tab-publish">
+      <div class="form-grid">
+        <div class="card">
+          <h3>Publish a Course</h3>
+          <label>Course ID (must be draft, have ≥1 instructor)</label>
+          <input type="text" id="publish-course-id" placeholder="crs_…" />
+          <p class="inline-note">Publishing runs enrichment (AI with fallback), sets status=published, and enqueues a course.published webhook to every active subscription.</p>
+          <div style="margin-top:1rem;">
+            <button type="button" onclick="publishCourse()">Publish Course</button>
+          </div>
+          <div id="publish-result" style="margin-top:0.5rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deliveries tab -->
+    <section id="tab-deliveries-panel" class="tab" role="tabpanel" aria-labelledby="tab-deliveries">
+      <div class="form-grid">
+        <div class="card">
+          <h3>Webhook Deliveries</h3>
+          <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; flex-wrap:wrap;">
+            <input type="text" id="del-filter-status" placeholder="filter by status (pending/delivered/failed/exhausted)" />
+            <button type="button" onclick="loadDeliveries()">Refresh</button>
+          </div>
+          <table id="deliveries-table">
+            <thead>
+              <tr>
+                <th>Delivery ID</th>
+                <th>Subscription</th>
+                <th>Event ID</th>
+                <th>Status</th>
+                <th>Attempt</th>
+                <th>Response</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="deliveries-tbody"></tbody>
+          </table>
+          <div id="deliveries-pagination" style="margin-top:0.5rem; display:flex; gap:0.35rem;"></div>
+          <div id="deliveries-error" style="color:#f87171; margin-top:0.5rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <script type="module">
+      import { api, setToken, getToken, htmlEscape, formatDate } from "/js/api.js";
+      import { initTokenBanner, showLoading, showEmpty, showError, toast } from "/js/ui.js";
+
+      initTokenBanner({ containerId: "token-banner" });
+
+      window.openTab = (name) => {
+        document.querySelectorAll(".tab").forEach((t) => (t.style.display = "none"));
+        document.querySelectorAll('[role="tab"]').forEach((b) => b.setAttribute("aria-selected", "false"));
+        const panel = document.getElementById(`${name}-panel`);
+        const btn = document.getElementById(`tab-${name}`);
+        if (panel) panel.style.display = "block";
+        if (btn) btn.setAttribute("aria-selected", "true");
+      };
+
+      // ---------- Courses ----------
+      const courseForm = document.getElementById("course-form");
+      const courseResult = document.getElementById("course-form-result");
+      const courseListEl = document.getElementById("course-list");
+
+      async function loadCourseList() {
+        const res = await api("/courses?limit=100");
+        if (!res.ok) {
+          courseListEl.innerHTML = `<p style="color:#f87171;">Unable to load courses (${res.status}).</p>`;
+          return;
+        }
+        const data = res.body;
+        const courses = data?.data || [];
+        if (courses.length === 0) {
+          courseListEl.innerHTML = "<p>No courses.</p>";
+          return;
+        }
+        courseListEl.innerHTML = courses.map(c => `
+          <div style="padding:0.4rem 0.6rem; border-bottom:1px solid #334155; cursor:pointer;" onclick="loadCourseIntoEditor('${htmlEscape(c.id)}', '${htmlEscape(c.code)}', '${htmlEscape(c.title)}', '${htmlEscape(c.description)}', '${htmlEscape(c.department)}', '${htmlEscape(c.level)}', ${Number(c.credits || 0)}, '${htmlEscape(c.status)}', '${htmlEscape(c.instructorIds?.join(", ") || "")}')">
+            <div style="font-weight:700;">${htmlEscape(c.code)} — ${htmlEscape(c.title)}</div>
+            <div style="font-size:0.85rem;color:var(--muted);">${htmlEscape(c.id)} · ${htmlEscape(c.status)} · ${htmlEscape(c.department)}</div>
+          </div>
+        `).join("");
+      }
+
+      window.loadCourseIntoEditor = (id, code, title, desc, dept, level, credits, status, instructors) => {
+        document.getElementById("course-edit-id").value = id;
+        document.getElementById("edit-course-id").value = id;
+        document.getElementById("form-code").value = code;
+        document.getElementById("form-title").value = title;
+        document.getElementById("form-description").value = desc;
+        document.getElementById("form-department").value = dept;
+        document.getElementById("form-level").value = level;
+        document.getElementById("form-credits").value = credits;
+        document.getElementById("form-instructors").value = instructors;
+        document.getElementById("course-form-result").textContent = "";
+        openTab("courses");
+      };
+
+      window.resetCourseForm = () => {
+        courseForm.reset();
+        document.getElementById("course-edit-id").value = "";
+        courseResult.textContent = "";
+      };
+
+      window.deleteCourse = async () => {
+        const id = document.getElementById("course-edit-id").value.trim();
+        if (!id) { toast("No course selected to delete."); return; }
+        if (!confirm(`Delete course ${id}?`)) return;
+        const res = await api(`/courses/${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!res.ok) {
+          courseResult.textContent = `Delete failed (${res.status}).`;
+          return;
+        }
+        toast("Course deleted.");
+        resetCourseForm();
+        loadCourseList();
+      };
+
+      courseForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        courseResult.textContent = "";
+        const id = document.getElementById("course-edit-id").value.trim();
+        const instructorsRaw = document.getElementById("form-instructors").value.trim();
+        const instructorIds = instructorsRaw ? instructorsRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+        const body = {
+          code: document.getElementById("form-code").value.trim(),
+          title: document.getElementById("form-title").value.trim(),
+          description: document.getElementById("form-description").value.trim(),
+          department: document.getElementById("form-department").value.trim(),
+          level: document.getElementById("form-level").value,
+          credits: Number(document.getElementById("form-credits").value),
+          instructorIds: instructorIds.length ? instructorIds : undefined,
+        };
+        const method = id ? "PATCH" : "POST";
+        const path = id ? `/courses/${encodeURIComponent(id)}` : "/courses";
+        const res = await api(path, { method, body: JSON.stringify(body) });
+        if (!res.ok) {
+          const detail = res.body?.details ?? res.body;
+          courseResult.textContent = `Save failed (${res.status}): ${JSON.stringify(detail) || res.body}`;
+          return;
+        }
+        toast(id ? "Course updated." : "Course created.");
+        resetCourseForm();
+        loadCourseList();
+      });
+
+      // ---------- Prerequisites ----------
+      function addPrereqRow(courseId = "", required = true, minGrade = "") {
+        const container = document.getElementById("prereq-rows");
+        const row = document.createElement("div");
+        row.className = "prereq-row";
+        row.innerHTML = `
+          <input type="text" placeholder="crs_…" value="${htmlEscape(courseId)}" />
+          <select>
+            <option value="true" ${required ? "selected" : ""}>required</option>
+            <option value="false" ${!required ? "selected" : ""}>optional</option>
+          </select>
+          <input type="number" placeholder="min grade" value="${htmlEscape(minGrade)}" />
+          <button type="button" class="small danger" onclick="this.closest('.prereq-row').remove()">×</button>
+        `;
+        container.appendChild(row);
+      }
+
+      window.addPrereqRow = addPrereqRow;
+
+      window.savePrerequisites = async () => {
+        const courseId = document.getElementById("prereq-course-id").value.trim();
+        if (!courseId) { toast("Enter a course ID."); return; }
+        const resultEl = document.getElementById("prereq-result");
+        resultEl.textContent = "";
+        const rows = document.getElementById("prereq-rows").querySelectorAll(".prereq-row");
+        const prerequisites = Array.from(rows).map((row) => {
+          const inputs = row.querySelectorAll("input");
+          const select = row.querySelector("select");
+          return {
+            courseId: inputs[0].value.trim(),
+            required: select.value === "true",
+            minimumGrade: inputs[1].value.trim() ? Number(inputs[1].value) : undefined,
+          };
+        }).filter(p => p.courseId);
+        const res = await api(`/courses/${encodeURIComponent(courseId)}/prerequisites`, {
+          method: "PUT",
+          body: JSON.stringify({ prerequisites }),
+        });
+        if (!res.ok) {
+          resultEl.textContent = `Save failed (${res.status}): ${JSON.stringify(res.body?.details ?? res.body)}`;
+          return;
+        }
+        toast("Prerequisites saved.");
+      };
+
+      // ---------- Publish ----------
+      window.publishCourse = async () => {
+        const courseId = document.getElementById("publish-course-id").value.trim();
+        if (!courseId) { toast("Enter a course ID."); return; }
+        const resultEl = document.getElementById("publish-result");
+        resultEl.textContent = "Publishing (this may take a few seconds)…";
+        const res = await api(`/courses/${encodeURIComponent(courseId)}/publish`, { method: "POST" });
+        if (!res.ok) {
+          resultEl.textContent = `Publish failed (${res.status}): ${JSON.stringify(res.body?.details ?? res.body)}`;
+          return;
+        }
+        const data = res.body;
+        const course = data?.data;
+        resultEl.innerHTML = `
+          <p style="color:var(--success);">Published.</p>
+          <p>${htmlEscape(course?.code || courseId)} — status ${htmlEscape(course?.status || "")}</p>
+          <p>Enrichment source: <span class="badge badge--${htmlEscape(course?.enrichment_source || "fallback")}">${htmlEscape(course?.enrichment_source || "fallback")}</span></p>
+        `;
+        toast("Course published.");
+      };
+
+      // ---------- Deliveries ----------
+      let deliveriesPage = 1;
+      const deliveriesLimit = 20;
+
+      window.loadDeliveries = async () => {
+        const tbody = document.getElementById("deliveries-tbody");
+        const pagination = document.getElementById("deliveries-pagination");
+        const errorEl = document.getElementById("deliveries-error");
+        tbody.innerHTML = "";
+        pagination.innerHTML = "";
+        errorEl.textContent = "";
+
+        const params = new URLSearchParams();
+        const status = document.getElementById("del-filter-status").value.trim();
+        if (status) params.set("status", status);
+        params.set("page", String(deliveriesPage));
+        params.set("limit", String(deliveriesLimit));
+
+        const res = await api(`/webhooks/deliveries?${params.toString()}`);
+        if (!res.ok) {
+          errorEl.textContent = `Failed to load deliveries (${res.status}).`;
+          return;
+        }
+        const data = res.body;
+        const deliveries = data?.data || [];
+        if (deliveries.length === 0) {
+          tbody.innerHTML = "<tr><td colspan='7' style='color:var(--muted);'>No deliveries.</td></tr>";
+          return;
+        }
+        tbody.innerHTML = deliveries.map(d => `
+          <tr>
+            <td><code style="font-size:0.8rem;">${htmlEscape(d.id)}</code></td>
+            <td><code style="font-size:0.8rem;">${htmlEscape(d.subscriptionId)}</code></td>
+            <td><code style="font-size:0.8rem;">${htmlEscape(d.eventId)}</code></td>
+            <td><span class="badge badge--${d.status === "delivered" ? "ai" : d.status === "exhausted" ? "fallback" : "ai"}">${htmlEscape(d.status)}</span></td>
+            <td>${d.attempt}</td>
+            <td>${d.responseStatus ?? "—"}</td>
+            <td>${formatDate(d.createdAt)}</td>
+          </tr>
+        `).join("");
+
+        const total = Number(data.total ?? 0);
+        const pages = Math.max(1, Math.ceil(total / deliveriesLimit));
+        pagination.innerHTML = "";
+        const btn = (label, p, disabled) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = label;
+          b.disabled = disabled || p < 1 || p > pages;
+          if (!b.disabled) b.addEventListener("click", () => { deliveriesPage = p; loadDeliveries(); });
+          return b;
+        };
+        pagination.appendChild(btn("← Prev", deliveriesPage - 1, deliveriesPage <= 1));
+        for (let p = 1; p <= pages; p += 1) {
+          pagination.appendChild(btn(String(p), p, false, p === deliveriesPage));
+        }
+        pagination.appendChild(btn("Next →", deliveriesPage + 1, deliveriesPage >= pages));
+      };
+
+      loadCourseList();
+      loadDeliveries();
+    </script>
+  </body>
+</html>

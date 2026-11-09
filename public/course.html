@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Course Catalog — Course Detail</title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <h1>Course Detail</h1>
+    <div id="token-banner"></div>
+
+    <a href="index.html" class="secondary-link">← Back to browse</a>
+
+    <div id="course-error" style="color:#f87171; margin-bottom:0.5rem;"></div>
+    <div id="course-loading" class="loader" role="status" aria-label="Loading course"></div>
+
+    <article id="course-content" style="display:none;">
+      <div class="course-hero">
+        <div>
+          <h2 id="course-title"></h2>
+          <div id="course-badges" class="course-hero__badges"></div>
+          <div id="course-meta" class="course-hero__meta"></div>
+        </div>
+      </div>
+
+      <p id="course-description"></p>
+
+      <div class="grid-2">
+        <section class="card">
+          <h3>Description</h3>
+          <p id="course-description-full"></p>
+        </section>
+
+        <section class="card enrichment">
+          <h3>AI Summary &amp; Tags</h3>
+          <p id="course-summary" class="summary"></p>
+          <div id="course-tags" class="tags-list"></div>
+          <p class="enrichment__source" id="course-source"></p>
+          <p class="inline-note">Advisory enrichment only — not authoritative for eligibility.</p>
+        </section>
+      </div>
+
+      <section class="card">
+        <h3>Instructors</h3>
+        <ul id="course-instructors" class="instructors-list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Prerequisites</h3>
+        <ul id="course-prerequisites" class="prereq-list"></ul>
+        <p class="inline-note" id="course-prereq-note"></p>
+      </section>
+
+      <section class="card eligible-panel" id="eligibility-panel">
+        <h3>Am I eligible?</h3>
+        <p class="inline-note">Select the courses you have completed, then check whether you meet this course's prerequisites.</p>
+        <div class="eligibility-controls">
+          <div class="course-checkboxes" id="completed-checkboxes"></div>
+          <button type="button" id="btn-check-eligibility">Check eligibility</button>
+        </div>
+        <div id="eligibility-result" style="margin-top:1rem;"></div>
+      </section>
+    </article>
+
+    <script type="module">
+      import { api, setToken, getToken, htmlEscape, formatDate } from "/js/api.js";
+      import { initTokenBanner, showLoading, showEmpty, showError, toast } from "/js/ui.js";
+
+      initTokenBanner({ containerId: "token-banner" });
+
+      const params = new URLSearchParams(location.search);
+      const courseId = params.get("id");
+
+      const errorEl = document.getElementById("course-error");
+      const loadingEl = document.getElementById("course-loading");
+      const contentEl = document.getElementById("course-content");
+
+      if (!courseId) {
+        showError("course-error", "No course ID provided. Use ?id=... in the URL.");
+        loadingEl.style.display = "none";
+      }
+
+      async function loadCourse() {
+        loadingEl.style.display = "block";
+        contentEl.style.display = "none";
+        errorEl.textContent = "";
+
+        try {
+          const res = await api(`/courses/${encodeURIComponent(courseId)}`);
+          if (!res.ok) {
+            if (res.status === 401) {
+              showError("course-error", "Unauthorized — enter a valid bearer JWT in the banner.");
+            } else if (res.status === 404) {
+              showError("course-error", "Course not found.");
+            } else {
+              showError("course-error", `Failed to load course (${res.status}).`);
+            }
+            return;
+          }
+          const data = res.body;
+          const course = data?.data;
+          if (!course) {
+            showError("course-error", "No course data returned.");
+            return;
+          }
+
+          renderCourse(course);
+          await loadEligibility(course);
+        } catch (err) {
+          showError("course-error", err.message || "Unable to load course.");
+        } finally {
+          loadingEl.style.display = "none";
+          contentEl.style.display = "block";
+        }
+      }
+
+      function renderCourse(c) {
+        document.title = `${c.code} — Course Catalog`;
+        document.getElementById("course-title").textContent = `${c.code} — ${htmlEscape(c.title)}`;
+
+        const badges = document.getElementById("course-badges");
+        badges.innerHTML = `
+          <span class="course-card__status status--${htmlEscape(c.status)}">${htmlEscape(c.status)}</span>
+          <span class="course-card__meta-item">${htmlEscape(c.department)}</span>
+          <span class="course-card__meta-item">${htmlEscape(c.level)}</span>
+          <span class="course-card__meta-item">${htmlEscape(c.credits)} credits</span>
+        `;
+
+        const meta = document.getElementById("course-meta");
+        meta.innerHTML = `
+          Created ${formatDate(c.createdAt)} · Updated ${formatDate(c.updatedAt)}
+          ${c.publishedAt ? ` · Published ${formatDate(c.publishedAt)}` : ""}
+        `;
+
+        const desc = document.getElementById("course-description");
+        desc.textContent = htmlEscape(c.description);
+
+        const descFull = document.getElementById("course-description-full");
+        descFull.textContent = htmlEscape(c.description);
+
+        // Enrichment
+        const summaryEl = document.getElementById("course-summary");
+        const tagsEl = document.getElementById("course-tags");
+        const sourceEl = document.getElementById("course-source");
+
+        if (c.summary) {
+          summaryEl.textContent = htmlEscape(c.summary);
+        } else {
+          summaryEl.textContent = "No summary available.";
+        }
+
+        const tags = Array.isArray(c.tags) ? c.tags : [];
+        tagsEl.innerHTML = tags.map(t => `<span>${htmlEscape(t)}</span>`).join("") || "<span>—</span>";
+
+        const source = c.enrichment_source || "fallback";
+        sourceEl.className = `enrichment__source source--${htmlEscape(source)}`;
+        sourceEl.textContent = `Source: ${source === "ai" ? "Workers AI" : "Deterministic fallback"}`;
+
+        // Instructors
+        const instrEl = document.getElementById("course-instructors");
+        const instructors = Array.isArray(c.instructors) ? c.instructors : [];
+        if (instructors.length === 0) {
+          instrEl.innerHTML = "<li>No instructors assigned.</li>";
+        } else {
+          instrEl.innerHTML = instructors.map(inst => `
+            <li><strong>${htmlEscape(inst.displayName)}</strong> — ${htmlEscape(inst.department)} (${htmlEscape(inst.id)})</li>
+          `).join("");
+        }
+
+        // Prerequisites
+        const preqEl = document.getElementById("course-prerequisites");
+        const preqNote = document.getElementById("course-prereq-note");
+        const prereqs = Array.isArray(c.prerequisites) ? c.prerequisites : [];
+        if (prereqs.length === 0) {
+          preqEl.innerHTML = "<li>No prerequisites.</li>";
+          preqNote.textContent = "";
+        } else {
+          preqEl.innerHTML = prereqs.map(p => {
+            const reqBadge = p.required ? '<span class="badge badge--ai" style="background:#111827;border-color:#374151;color:#f9fafb;">required</span>' : '<span class="badge badge--fallback" style="background:#111827;border-color:#374151;color:#f9fafb;">optional</span>';
+            const grade = p.minimumGrade !== undefined ? ` (min grade ${htmlEscape(String(p.minimumGrade))})` : "";
+            return `<li>${htmlEscape(p.courseId)} ${reqBadge}${htmlEscape(grade)}</li>`;
+          }).join("");
+          preqNote.textContent = "Required prerequisites must be completed to be eligible.";
+        }
+      }
+
+      async function loadEligibility(course) {
+        // Load all courses as checkboxes for the user to mark completed.
+        const res = await api("/courses?limit=100");
+        if (!res.ok) {
+          document.getElementById("completed-checkboxes").innerHTML = "<p style='color:#f87171;'>Unable to load course list for eligibility.</p>";
+          return;
+        }
+        const data = res.body;
+        const allCourses = data?.data || [];
+
+        const checkboxesEl = document.getElementById("completed-checkboxes");
+        checkboxesEl.innerHTML = allCourses.map(c => `
+          <label>
+            <input type="checkbox" value="${htmlEscape(c.id)}" />
+            ${htmlEscape(c.code)} — ${htmlEscape(c.title)}
+          </label>
+        `).join("") || "<p>No courses available.</p>";
+
+        const btn = document.getElementById("btn-check-eligibility");
+        const resultEl = document.getElementById("eligibility-result");
+
+        btn.addEventListener("click", async () => {
+          const checked = checkboxesEl.querySelectorAll('input[type="checkbox"]:checked');
+          const completed = Array.from(checked).map(cb => cb.value);
+
+          resultEl.innerHTML = '<div class="loader" style="width:20px;height:20px;"></div>';
+          try {
+            const checkRes = await api("/prerequisites/check", {
+              method: "POST",
+              body: JSON.stringify({ courseId, completedCourseIds: completed }),
+            });
+            if (!checkRes.ok) {
+              if (checkRes.status === 401) throw new Error("Unauthorized — enter a valid bearer JWT.");
+              throw new Error(`Eligibility check failed (${checkRes.status})`);
+            }
+            const result = checkRes.body;
+            const eligible = !!result.eligible;
+            const missing = Array.isArray(result.missing) ? result.missing : [];
+            const panel = document.getElementById("eligibility-panel");
+            panel.className = `card eligible-panel ${eligible ? "" : "not-eligible"}`;
+            resultEl.innerHTML = `
+              <p><strong>${eligible ? "✅ Eligible" : "❌ Not eligible"}</strong></p>
+              ${missing.length ? `<p>Missing prerequisites: ${missing.map(htmlEscape).join(", ")}</p>` : "<p>All prerequisites satisfied.</p>"}
+            `;
+          } catch (err) {
+            resultEl.innerHTML = `<p style="color:#f87171;">${htmlEscape(err.message || "Eligibility check failed.")}</p>`;
+          }
+        });
+      }
+
+      loadCourse();
+    </script>
+  </body>
+</html>

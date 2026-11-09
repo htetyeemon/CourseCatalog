@@ -9,6 +9,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "types": "wrangler types",
+    "openapi:json": "node scripts/generate-openapi-json.mjs",
+    "collection:postman": "node scripts/generate-postman-collection.mjs",
+    "smoke:staging": "node scripts/smoke-test.mjs",
+    "token:dev": "node scripts/mint-dev-token.mjs",
     "migrate:local": "wrangler d1 migrations apply DB --local",
     "migrate:remote": "wrangler d1 migrations apply DB --remote",
     "seed:local": "wrangler d1 execute DB --local --file=./seed.sql",
@@ -23,8 +27,13 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.6.0",
+    "@cloudflare/workers-types": "^5.20261109.1",
     "@redocly/cli": "^2.76.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "typescript": "^7.0.2",
+    "vite": "^6.4.5",
     "vitest": "^5.1.0",
     "wrangler": "^4.158.0",
     "yaml": "^2.9.1"

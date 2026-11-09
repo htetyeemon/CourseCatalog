@@ -33,6 +33,20 @@ export const PrerequisitesResponseSchema = z
   })
   .strict();
 
+export const PrerequisiteCheckRequestSchema = z
+  .object({
+    courseId: CourseIdSchema,
+    completedCourseIds: z.array(CourseIdSchema).max(100).default([]),
+  })
+  .strict();
+
+export const PrerequisiteCheckResponseSchema = z
+  .object({
+    eligible: z.boolean(),
+    missing: z.array(CourseIdSchema).max(50),
+  })
+  .strict();
+
 export const EligibilityCheckRequestSchema = z
   .object({
     studentId: StudentIdSchema,

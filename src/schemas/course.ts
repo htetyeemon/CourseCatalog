@@ -9,6 +9,8 @@ import {
   TotalSchema,
   paginationQueryShape,
 } from "./common.js";
+import { InstructorSchema } from "./instructor.js";
+import { PrerequisiteRuleSchema } from "./prerequisite.js";
 
 const courseCodeSchema = z
   .string()
@@ -46,15 +48,28 @@ export const CourseSchema = z
     level: CourseLevelSchema,
     department: courseDepartmentSchema,
     instructorIds: courseInstructorIdsSchema,
+    instructors: z.array(InstructorSchema).max(20).optional(),
+    prerequisites: z.array(PrerequisiteRuleSchema).max(50).optional(),
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
     publishedAt: IsoDateTimeSchema.optional(),
   })
   .strict();
 
+export const CourseDetailSchema = CourseSchema.extend({
+  instructors: z.array(InstructorSchema).max(20),
+  prerequisites: z.array(PrerequisiteRuleSchema).max(50),
+}).strict();
+
 export const CourseResponseSchema = z
   .object({
     data: CourseSchema,
+  })
+  .strict();
+
+export const CourseDetailResponseSchema = z
+  .object({
+    data: CourseDetailSchema,
   })
   .strict();
 

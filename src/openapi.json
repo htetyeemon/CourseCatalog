@@ -1,0 +1,2879 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Course Catalog API",
+    "version": "1.0.0",
+    "summary": "Contract-first API for courses, instructors, prerequisites, and webhooks.",
+    "description": "The Course Catalog API is the shared contract for the multi-team course\ncatalog platform. This document is normative: `openapi.yaml` and the Zod\nschemas in `src/schemas` must describe the same shapes.\n\n## Conventions\n\n- All routes are served under `/v1`.\n- JSON is the only request and response media type.\n- Single resources are returned as `{\"data\": <resource>}`.\n- Paginated lists are returned as `{\"data\": [...], \"page\": 1, \"limit\": 20, \"total\": 0}`.\n- Errors always use `{\"error\": {\"code\", \"message\", \"details?\", \"requestId\"}}`.\n- Resource IDs are prefixed: courses use `crs_`, instructors use `ins_`,\n  students use `stu_`. Webhook subscriptions use `whs_`, deliveries use\n  `whd_`, events use `evt_`, and request IDs use `req_`.\n- Timestamps are RFC 3339 / ISO 8601 UTC strings (for example,\n  `2026-03-01T15:00:00Z`).\n\n## Authentication and authorization\n\nEvery operation except `GET /v1/health` requires a Bearer JWT:\n`Authorization: Bearer <token>`. The token claims are `sub`, `role`, `iss`,\nand `exp`. The supported roles are `student`, `instructor`,\n`catalog_admin`, and `service`. Each operation declares its accepted roles\nwith the `x-required-roles` extension. See `docs/auth.md`.\n\n## Webhooks\n\nPublishing a course emits `course.published` version `1.0`. Subscribers\nreceive the event envelope described by `CoursePublishedEvent`, signed with\n`X-Catalog-Signature`. See `docs/webhooks.md`.\n",
+    "contact": {
+      "name": "Course Catalog Platform Team",
+      "url": "https://catalog.example.com"
+    },
+    "license": {
+      "name": "Proprietary",
+      "identifier": "LicenseRef-Proprietary"
+    }
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "servers": [
+    {
+      "url": "https://api.course-catalog.dev",
+      "description": "Production"
+    },
+    {
+      "url": "http://127.0.0.1:8787",
+      "description": "Local development (wrangler dev)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Courses",
+      "description": "Course discovery and lifecycle management."
+    },
+    {
+      "name": "Instructors",
+      "description": "Instructor directory."
+    },
+    {
+      "name": "Prerequisites",
+      "description": "Prerequisite rules and eligibility evaluation."
+    },
+    {
+      "name": "Webhooks",
+      "description": "Webhook subscriptions, deliveries, and event delivery contract."
+    },
+    {
+      "name": "Health",
+      "description": "Service health and dependency status."
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/courses": {
+      "get": {
+        "tags": [
+          "Courses"
+        ],
+        "operationId": "listCourses",
+        "summary": "List or search courses",
+        "description": "Returns a paginated list of courses. The `q` parameter searches course\ncode, title, and description. All authenticated roles may call this\noperation.\n",
+        "x-required-roles": [
+          "student",
+          "instructor",
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/CourseSearchQuery"
+          },
+          {
+            "$ref": "#/components/parameters/CourseStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/DepartmentFilter"
+          },
+          {
+            "$ref": "#/components/parameters/CourseLevelFilter"
+          },
+          {
+            "$ref": "#/components/parameters/InstructorIdFilter"
+          },
+          {
+            "$ref": "#/components/parameters/CourseSort"
+          },
+          {
+            "$ref": "#/components/parameters/SortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated collection of courses.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseListResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/CourseListResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Courses"
+        ],
+        "operationId": "createCourse",
+        "summary": "Create a course",
+        "description": "Creates a draft course. Only catalog administrators and services may create courses.",
+        "x-required-roles": [
+          "catalog_admin",
+          "service"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCourseRequest"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/CreateCourseRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The course was created.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URL of the created course.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "example": "/v1/courses/crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/CourseResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/courses/{courseId}": {
+      "get": {
+        "tags": [
+          "Courses"
+        ],
+        "operationId": "getCourse",
+        "summary": "Get a course",
+        "description": "Returns a single course by ID. All authenticated roles may call this operation.",
+        "x-required-roles": [
+          "student",
+          "instructor",
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CourseIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested course.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/CourseDetailResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Courses"
+        ],
+        "operationId": "updateCourse",
+        "summary": "Update a course",
+        "description": "Applies a partial update to a course. At least one field must be\npresent. Publishing is a separate operation. Only catalog\nadministrators and services may update courses.\n",
+        "x-required-roles": [
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CourseIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCourseRequest"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/UpdateCourseRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated course.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/CourseResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/courses/{courseId}/publish": {
+      "post": {
+        "tags": [
+          "Courses"
+        ],
+        "operationId": "publishCourse",
+        "summary": "Publish a course",
+        "description": "Publishes a draft course and emits a `course.published` version `1.0`\nwebhook event. A published course requires at least one instructor and\nno unsatisfied catalog validation errors. Only catalog administrators\nand services may publish courses.\n",
+        "x-required-roles": [
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CourseIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The published course.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/PublishedCourseResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/instructors": {
+      "get": {
+        "tags": [
+          "Instructors"
+        ],
+        "operationId": "listInstructors",
+        "summary": "List or search instructors",
+        "description": "Returns a paginated list of instructors. All authenticated roles may call this operation.",
+        "x-required-roles": [
+          "student",
+          "instructor",
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/InstructorSearchQuery"
+          },
+          {
+            "$ref": "#/components/parameters/DepartmentFilter"
+          },
+          {
+            "$ref": "#/components/parameters/InstructorSort"
+          },
+          {
+            "$ref": "#/components/parameters/SortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated collection of instructors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstructorListResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/InstructorListResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/instructors/{instructorId}": {
+      "get": {
+        "tags": [
+          "Instructors"
+        ],
+        "operationId": "getInstructor",
+        "summary": "Get an instructor",
+        "description": "Returns a single instructor by ID. All authenticated roles may call this operation.",
+        "x-required-roles": [
+          "student",
+          "instructor",
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InstructorIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested instructor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstructorResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/InstructorResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/courses/{courseId}/prerequisites": {
+      "put": {
+        "tags": [
+          "Prerequisites"
+        ],
+        "operationId": "putCoursePrerequisites",
+        "summary": "Replace course prerequisites",
+        "description": "Replaces the complete prerequisite set for a course. The operation is\natomic. A course cannot list itself, duplicate a course, or introduce a\nprerequisite cycle. Only catalog administrators and services may update\nprerequisites.\n",
+        "x-required-roles": [
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CourseIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutPrerequisitesRequest"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/PutPrerequisitesRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated prerequisite set.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrerequisitesResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/PrerequisitesResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/prerequisites/check": {
+      "post": {
+        "tags": [
+          "Prerequisites"
+        ],
+        "operationId": "checkPrerequisiteCompletion",
+        "summary": "Check direct prerequisites against completed courses",
+        "description": "Evaluates a stateless eligibility check from the supplied completed\ncourse IDs. Only direct prerequisite rules marked required are\nconsidered; optional prerequisites never block eligibility. Grades and\nstudent records are not read. All authenticated roles may call this\noperation.\n",
+        "x-required-roles": [
+          "student",
+          "instructor",
+          "catalog_admin",
+          "service"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrerequisiteCheckRequest"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/PrerequisiteCheckRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The direct-prerequisite eligibility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrerequisiteCheckResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/PrerequisiteCheckResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/courses/{courseId}/eligibility-check": {
+      "post": {
+        "tags": [
+          "Prerequisites"
+        ],
+        "operationId": "checkPrerequisiteEligibility",
+        "summary": "Check prerequisite eligibility",
+        "description": "Evaluates whether a student satisfies the prerequisites for a course.\nStudents may only check their own `studentId`; instructors, catalog\nadministrators, and services may check any student. This\nstudent-record-based operation remains part of the long-term contract\nbut is not implemented by the current Worker. Use\n`POST /v1/prerequisites/check` for stateless direct-prerequisite\nchecks.\n",
+        "x-required-roles": [
+          "student",
+          "instructor",
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CourseIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EligibilityCheckRequest"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/EligibilityCheckRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The eligibility evaluation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EligibilityCheckResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/EligibilityCheckResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/webhooks/subscriptions": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "createWebhookSubscription",
+        "summary": "Create a webhook subscription",
+        "description": "Registers an HTTPS endpoint for catalog events. The response includes a\n`signingSecret` exactly once; store it securely and use it to verify\n`X-Catalog-Signature`. Only catalog administrators and services may\ncreate subscriptions.\n",
+        "x-required-roles": [
+          "catalog_admin",
+          "service"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookSubscriptionRequest"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/CreateWebhookSubscriptionRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The subscription was created and the signing secret is returned once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscriptionCreatedResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/WebhookSubscriptionCreatedResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/webhooks/deliveries": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "listWebhookDeliveries",
+        "summary": "List webhook deliveries",
+        "description": "Returns a paginated list of webhook delivery attempts. Filter by\nsubscription, event, status, or event type. Only catalog administrators\nand services may inspect deliveries.\n",
+        "x-required-roles": [
+          "catalog_admin",
+          "service"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/WebhookSubscriptionIdFilter"
+          },
+          {
+            "$ref": "#/components/parameters/WebhookEventIdFilter"
+          },
+          {
+            "$ref": "#/components/parameters/WebhookDeliveryStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/WebhookEventTypeFilter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated collection of webhook deliveries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDeliveryListResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/WebhookDeliveryListResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "getHealth",
+        "summary": "Service health",
+        "description": "Returns service and dependency health. This operation is public and\ndoes not require a Bearer token.\n",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "All checked dependencies are healthy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "examples": {
+                  "default": {
+                    "$ref": "#/components/examples/HealthResponse"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "coursePublished": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "receiveCoursePublishedWebhook",
+        "summary": "Deliver a course.published event",
+        "description": "Outgoing webhook delivery contract. The request body is the\n`CoursePublishedEvent` envelope. Subscribers must verify\n`X-Catalog-Signature` using the subscription signing secret, reject\ntimestamps outside the five-minute replay window, and deduplicate by\nevent `id`. Any 2xx response is treated as successful delivery.\n",
+        "security": [],
+        "parameters": [
+          {
+            "name": "X-Catalog-Signature",
+            "in": "header",
+            "required": true,
+            "description": "Signature header in the form `t=<unix>,v1=<hex hmac-sha256 of t.body>`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^t=[0-9]+,v1=[a-f0-9]{64}$",
+              "example": "t=1772377200,v1=8f14e45fceea167a5a36dedd4bea2543f0c2a1d3e4b5c6d7e8f90123456789ab"
+            }
+          },
+          {
+            "name": "X-Catalog-Event",
+            "in": "header",
+            "required": true,
+            "description": "The event type.",
+            "schema": {
+              "type": "string",
+              "const": "course.published"
+            }
+          },
+          {
+            "name": "X-Catalog-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "The delivery attempt identifier.",
+            "schema": {
+              "$ref": "#/components/schemas/WebhookDeliveryId"
+            }
+          },
+          {
+            "name": "X-Catalog-Event-Id",
+            "in": "header",
+            "required": true,
+            "description": "The event identifier. Duplicate deliveries share this value.",
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoursePublishedEvent"
+              },
+              "examples": {
+                "default": {
+                  "$ref": "#/components/examples/CoursePublishedEvent"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The subscriber accepted the event. Any 2xx response is successful."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Bearer JWT issued by the catalog identity provider. Required claims are\n`sub`, `role`, `iss`, and `exp`. Local development uses HS256 with\n`JWT_SECRET`; production should migrate to asymmetric keys via JWKS.\nSee `docs/auth.md`.\n"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "One-based page number.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of items per page.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "CourseIdPath": {
+        "name": "courseId",
+        "in": "path",
+        "required": true,
+        "description": "Prefixed course identifier.",
+        "schema": {
+          "$ref": "#/components/schemas/CourseId"
+        }
+      },
+      "InstructorIdPath": {
+        "name": "instructorId",
+        "in": "path",
+        "required": true,
+        "description": "Prefixed instructor identifier.",
+        "schema": {
+          "$ref": "#/components/schemas/InstructorId"
+        }
+      },
+      "CourseSearchQuery": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "Case-insensitive search over course code, title, and description.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "InstructorSearchQuery": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "Case-insensitive search over instructor name, department, and bio.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "CourseStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filter by lifecycle status.",
+        "schema": {
+          "$ref": "#/components/schemas/CourseStatus"
+        }
+      },
+      "DepartmentFilter": {
+        "name": "department",
+        "in": "query",
+        "required": false,
+        "description": "Filter by exact department name.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "CourseLevelFilter": {
+        "name": "level",
+        "in": "query",
+        "required": false,
+        "description": "Filter by course level.",
+        "schema": {
+          "$ref": "#/components/schemas/CourseLevel"
+        }
+      },
+      "InstructorIdFilter": {
+        "name": "instructorId",
+        "in": "query",
+        "required": false,
+        "description": "Filter courses assigned to an instructor.",
+        "schema": {
+          "$ref": "#/components/schemas/InstructorId"
+        }
+      },
+      "CourseSort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Field used to order course results.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "code",
+            "title",
+            "createdAt",
+            "updatedAt"
+          ],
+          "default": "title"
+        }
+      },
+      "InstructorSort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Field used to order instructor results.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "name",
+            "department",
+            "createdAt"
+          ],
+          "default": "name"
+        }
+      },
+      "SortOrder": {
+        "name": "order",
+        "in": "query",
+        "required": false,
+        "description": "Sort direction.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        }
+      },
+      "WebhookSubscriptionIdFilter": {
+        "name": "subscriptionId",
+        "in": "query",
+        "required": false,
+        "description": "Filter deliveries by webhook subscription.",
+        "schema": {
+          "$ref": "#/components/schemas/WebhookSubscriptionId"
+        }
+      },
+      "WebhookEventIdFilter": {
+        "name": "eventId",
+        "in": "query",
+        "required": false,
+        "description": "Filter deliveries by event identifier. All retries of one event share this value.",
+        "schema": {
+          "$ref": "#/components/schemas/EventId"
+        }
+      },
+      "WebhookDeliveryStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filter deliveries by delivery status.",
+        "schema": {
+          "$ref": "#/components/schemas/WebhookDeliveryStatus"
+        }
+      },
+      "WebhookEventTypeFilter": {
+        "name": "eventType",
+        "in": "query",
+        "required": false,
+        "description": "Filter deliveries by event type.",
+        "schema": {
+          "$ref": "#/components/schemas/WebhookEventType"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is malformed or contains an invalid parameter.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/InvalidRequestError"
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The Bearer token is missing, expired, malformed, or has an untrusted issuer.",
+        "headers": {
+          "WWW-Authenticate": {
+            "description": "Bearer authentication challenge.",
+            "schema": {
+              "type": "string",
+              "example": "Bearer error=\"invalid_token\""
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/UnauthorizedError"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The authenticated role or subject is not allowed to perform this operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/ForbiddenError"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource does not exist.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/NotFoundError"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with the current resource state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/ConflictError"
+              }
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "The request is syntactically valid but violates a business rule.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/ValidationFailedError"
+              }
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "The caller exceeded the request rate limit.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before retrying.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "example": 30
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/RateLimitedError"
+              }
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/InternalError"
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The service or a required dependency is unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "$ref": "#/components/examples/ServiceUnavailableError"
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CourseId": {
+        "type": "string",
+        "description": "Prefixed course identifier.",
+        "pattern": "^crs_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D"
+        ]
+      },
+      "InstructorId": {
+        "type": "string",
+        "description": "Prefixed instructor identifier.",
+        "pattern": "^ins_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+        ]
+      },
+      "StudentId": {
+        "type": "string",
+        "description": "Prefixed student identifier.",
+        "pattern": "^stu_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "stu_01J9ZK6B2C3D4E5F6G7H8J9K0M"
+        ]
+      },
+      "WebhookSubscriptionId": {
+        "type": "string",
+        "description": "Prefixed webhook subscription identifier.",
+        "pattern": "^whs_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "whs_01J9ZK7C3D4E5F6G7H8J9K0M1N"
+        ]
+      },
+      "WebhookDeliveryId": {
+        "type": "string",
+        "description": "Prefixed webhook delivery attempt identifier.",
+        "pattern": "^whd_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "whd_01J9ZK8D4E5F6G7H8J9K0M1N2P"
+        ]
+      },
+      "EventId": {
+        "type": "string",
+        "description": "Prefixed event identifier. Retries of the same event share this ID.",
+        "pattern": "^evt_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "evt_01J9ZK9E5F6G7H8J9K0M1N2P3Q"
+        ]
+      },
+      "RequestId": {
+        "type": "string",
+        "description": "Prefixed request identifier used for tracing and support.",
+        "pattern": "^req_[A-Za-z0-9]{8,32}$",
+        "examples": [
+          "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+        ]
+      },
+      "CourseStatus": {
+        "type": "string",
+        "description": "Course lifecycle status.",
+        "enum": [
+          "draft",
+          "published",
+          "archived"
+        ]
+      },
+      "CourseLevel": {
+        "type": "string",
+        "description": "Course difficulty level.",
+        "enum": [
+          "introductory",
+          "intermediate",
+          "advanced"
+        ]
+      },
+      "Course": {
+        "type": "object",
+        "description": "A course in the catalog.",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "title",
+          "description",
+          "status",
+          "credits",
+          "level",
+          "department",
+          "instructorIds",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "code": {
+            "type": "string",
+            "description": "Human-readable course code.",
+            "pattern": "^[A-Z]{2,8}-[0-9]{3,4}$",
+            "examples": [
+              "CS-101"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "status": {
+            "$ref": "#/components/schemas/CourseStatus"
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "level": {
+            "$ref": "#/components/schemas/CourseLevel"
+          },
+          "department": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "instructorIds": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/InstructorId"
+            }
+          },
+          "instructors": {
+            "type": "array",
+            "description": "Full instructor records. Present on single-course responses.",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            }
+          },
+          "prerequisites": {
+            "type": "array",
+            "description": "Prerequisite rules. Present on single-course responses.",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PrerequisiteRule"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CourseResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Course"
+          }
+        }
+      },
+      "CourseListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "page",
+          "limit",
+          "total"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Course"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "CreateCourseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "title",
+          "description",
+          "credits",
+          "level",
+          "department"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z]{2,8}-[0-9]{3,4}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "level": {
+            "$ref": "#/components/schemas/CourseLevel"
+          },
+          "department": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "instructorIds": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/InstructorId"
+            }
+          }
+        }
+      },
+      "UpdateCourseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z]{2,8}-[0-9]{3,4}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "level": {
+            "$ref": "#/components/schemas/CourseLevel"
+          },
+          "department": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "instructorIds": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/InstructorId"
+            }
+          }
+        }
+      },
+      "Instructor": {
+        "type": "object",
+        "description": "An instructor in the catalog directory.",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "displayName",
+          "email",
+          "department",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/InstructorId"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "department": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "bio": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "courseIds": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/CourseId"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InstructorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Instructor"
+          }
+        }
+      },
+      "InstructorListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "page",
+          "limit",
+          "total"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PrerequisiteRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "courseId"
+        ],
+        "properties": {
+          "courseId": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the prerequisite is mandatory. Defaults to true.",
+            "default": true
+          },
+          "minimumGrade": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Minimum grade percentage required to satisfy the prerequisite."
+          }
+        }
+      },
+      "PutPrerequisitesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prerequisites"
+        ],
+        "properties": {
+          "prerequisites": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PrerequisiteRule"
+            }
+          }
+        }
+      },
+      "PrerequisiteSet": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "courseId",
+          "prerequisites",
+          "updatedAt"
+        ],
+        "properties": {
+          "courseId": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "prerequisites": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PrerequisiteRule"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PrerequisitesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PrerequisiteSet"
+          }
+        }
+      },
+      "PrerequisiteCheckRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "courseId"
+        ],
+        "properties": {
+          "courseId": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "completedCourseIds": {
+            "type": "array",
+            "description": "Course IDs the caller has completed. Defaults to an empty list.",
+            "maxItems": 100,
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CourseId"
+            }
+          }
+        }
+      },
+      "PrerequisiteCheckResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eligible",
+          "missing"
+        ],
+        "properties": {
+          "eligible": {
+            "type": "boolean",
+            "description": "True when every required direct prerequisite is completed."
+          },
+          "missing": {
+            "type": "array",
+            "description": "Required direct prerequisite course IDs that are not completed.",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/CourseId"
+            }
+          }
+        }
+      },
+      "EligibilityCheckRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "studentId"
+        ],
+        "properties": {
+          "studentId": {
+            "$ref": "#/components/schemas/StudentId"
+          }
+        }
+      },
+      "EligibilityReason": {
+        "type": "string",
+        "description": "Why a prerequisite check succeeded or failed.",
+        "enum": [
+          "satisfied",
+          "not_completed",
+          "grade_below_minimum",
+          "missing_record"
+        ]
+      },
+      "EligibilityCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "courseId",
+          "required",
+          "satisfied",
+          "reason"
+        ],
+        "properties": {
+          "courseId": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "satisfied": {
+            "type": "boolean"
+          },
+          "minimumGrade": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "earnedGrade": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reason": {
+            "$ref": "#/components/schemas/EligibilityReason"
+          }
+        }
+      },
+      "EligibilityResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "studentId",
+          "courseId",
+          "eligible",
+          "evaluatedAt",
+          "checks"
+        ],
+        "properties": {
+          "studentId": {
+            "$ref": "#/components/schemas/StudentId"
+          },
+          "courseId": {
+            "$ref": "#/components/schemas/CourseId"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/EligibilityCheck"
+            }
+          }
+        }
+      },
+      "EligibilityCheckResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EligibilityResult"
+          }
+        }
+      },
+      "WebhookEventType": {
+        "type": "string",
+        "description": "Supported webhook event type.",
+        "enum": [
+          "course.published"
+        ]
+      },
+      "WebhookSubscriptionStatus": {
+        "type": "string",
+        "description": "Subscription lifecycle status.",
+        "enum": [
+          "active",
+          "disabled"
+        ]
+      },
+      "WebhookSubscription": {
+        "type": "object",
+        "description": "A webhook subscription. The signing secret is never included here.",
+        "required": [
+          "id",
+          "url",
+          "events",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/WebhookSubscriptionId"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048
+          },
+          "events": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/WebhookSubscriptionStatus"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateWebhookSubscriptionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "events"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048
+          },
+          "events": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            }
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "WebhookSubscriptionCreated": {
+        "description": "A newly created subscription with its one-time signing secret.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WebhookSubscription"
+          },
+          {
+            "type": "object",
+            "required": [
+              "signingSecret"
+            ],
+            "properties": {
+              "signingSecret": {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 256,
+                "description": "One-time secret used to verify `X-Catalog-Signature`. It is never returned again."
+              }
+            }
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "WebhookSubscriptionCreatedResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WebhookSubscriptionCreated"
+          }
+        }
+      },
+      "WebhookDeliveryStatus": {
+        "type": "string",
+        "description": "Current delivery attempt status.",
+        "enum": [
+          "pending",
+          "delivered",
+          "failed",
+          "exhausted"
+        ]
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "description": "A webhook delivery attempt record.",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "subscriptionId",
+          "eventId",
+          "eventType",
+          "status",
+          "attempt",
+          "maxAttempts",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/WebhookDeliveryId"
+          },
+          "subscriptionId": {
+            "$ref": "#/components/schemas/WebhookSubscriptionId"
+          },
+          "eventId": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "eventType": {
+            "$ref": "#/components/schemas/WebhookEventType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WebhookDeliveryStatus"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 6,
+            "description": "Number of delivery attempts made so far."
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "const": 6
+          },
+          "responseStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WebhookDeliveryListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "page",
+          "limit",
+          "total"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDelivery"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "EnrichmentSource": {
+        "type": "string",
+        "description": "Whether enrichment came from Workers AI or the deterministic fallback.",
+        "enum": [
+          "ai",
+          "fallback"
+        ]
+      },
+      "CourseEnrichment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "summary",
+          "tags",
+          "suggestedPrerequisites",
+          "source"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "suggestedPrerequisites": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/CourseId"
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/EnrichmentSource"
+          }
+        }
+      },
+      "CoursePublishedData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "course",
+          "instructors",
+          "prerequisites",
+          "enrichment"
+        ],
+        "properties": {
+          "course": {
+            "$ref": "#/components/schemas/Course"
+          },
+          "instructors": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            }
+          },
+          "prerequisites": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PrerequisiteRule"
+            }
+          },
+          "enrichment": {
+            "$ref": "#/components/schemas/CourseEnrichment"
+          }
+        }
+      },
+      "CoursePublishedEvent": {
+        "type": "object",
+        "description": "Immutable `course.published` event envelope. Consumers must deduplicate\nby `id`.\n",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "version",
+          "occurredAt",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "const": "course.published"
+          },
+          "version": {
+            "type": "string",
+            "const": "1.0"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CoursePublishedData"
+          }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "description": "Stable machine-readable error code.",
+        "enum": [
+          "invalid_request",
+          "validation_failed",
+          "unauthorized",
+          "forbidden",
+          "not_found",
+          "conflict",
+          "prerequisite_cycle",
+          "prerequisite_self_reference",
+          "rate_limited",
+          "internal_error",
+          "service_unavailable"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Optional structured context, such as field-level validation errors."
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error envelope used by every failure response.",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      },
+      "HealthStatus": {
+        "type": "string",
+        "description": "Health state of the service or a dependency.",
+        "enum": [
+          "ok",
+          "degraded"
+        ]
+      },
+      "HealthChecks": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "database",
+          "ai"
+        ],
+        "properties": {
+          "database": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "ai": {
+            "$ref": "#/components/schemas/HealthStatus"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "version",
+          "timestamp",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "examples": [
+              "1.0.0"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/HealthChecks"
+          }
+        }
+      }
+    },
+    "examples": {
+      "CourseResponse": {
+        "summary": "A draft course resource",
+        "value": {
+          "data": {
+            "id": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+            "code": "CS-101",
+            "title": "Introduction to Computer Science",
+            "description": "Foundational course covering algorithms, data structures, and programming in Python.",
+            "status": "draft",
+            "credits": 4,
+            "level": "introductory",
+            "department": "Computer Science",
+            "instructorIds": [
+              "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+            ],
+            "createdAt": "2026-01-15T09:00:00Z",
+            "updatedAt": "2026-02-01T12:30:00Z"
+          }
+        }
+      },
+      "CourseDetailResponse": {
+        "summary": "A course resource with joined instructors and prerequisites",
+        "value": {
+          "data": {
+            "id": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+            "code": "CS-201",
+            "title": "Data Structures and Algorithms",
+            "description": "Core data structures, algorithm analysis, and implementation techniques.",
+            "status": "published",
+            "credits": 4,
+            "level": "intermediate",
+            "department": "Computer Science",
+            "instructorIds": [
+              "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+            ],
+            "instructors": [
+              {
+                "id": "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K",
+                "displayName": "Dr. Ada Lovelace",
+                "email": "ada@example.edu",
+                "department": "Computer Science",
+                "bio": "Teaching algorithms and programming foundations.",
+                "courseIds": [
+                  "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D"
+                ],
+                "createdAt": "2026-01-10T08:00:00Z",
+                "updatedAt": "2026-02-10T10:15:00Z"
+              }
+            ],
+            "prerequisites": [
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E",
+                "required": true,
+                "minimumGrade": 60
+              }
+            ],
+            "createdAt": "2026-01-15T09:00:00Z",
+            "updatedAt": "2026-03-01T15:00:00Z",
+            "publishedAt": "2026-03-01T15:00:00Z"
+          }
+        }
+      },
+      "PublishedCourseResponse": {
+        "summary": "A published course resource",
+        "value": {
+          "data": {
+            "id": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+            "code": "CS-101",
+            "title": "Introduction to Computer Science",
+            "description": "Foundational course covering algorithms, data structures, and programming in Python.",
+            "status": "published",
+            "credits": 4,
+            "level": "introductory",
+            "department": "Computer Science",
+            "instructorIds": [
+              "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+            ],
+            "createdAt": "2026-01-15T09:00:00Z",
+            "updatedAt": "2026-03-01T15:00:00Z",
+            "publishedAt": "2026-03-01T15:00:00Z"
+          }
+        }
+      },
+      "CourseListResponse": {
+        "summary": "Paginated course results",
+        "value": {
+          "data": [
+            {
+              "id": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+              "code": "CS-101",
+              "title": "Introduction to Computer Science",
+              "description": "Foundational course covering algorithms, data structures, and programming in Python.",
+              "status": "published",
+              "credits": 4,
+              "level": "introductory",
+              "department": "Computer Science",
+              "instructorIds": [
+                "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+              ],
+              "createdAt": "2026-01-15T09:00:00Z",
+              "updatedAt": "2026-03-01T15:00:00Z",
+              "publishedAt": "2026-03-01T15:00:00Z"
+            }
+          ],
+          "page": 1,
+          "limit": 20,
+          "total": 1
+        }
+      },
+      "CreateCourseRequest": {
+        "summary": "Create a draft course",
+        "value": {
+          "code": "CS-201",
+          "title": "Data Structures",
+          "description": "Core data structures, complexity analysis, and implementation techniques.",
+          "credits": 4,
+          "level": "intermediate",
+          "department": "Computer Science",
+          "instructorIds": [
+            "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+          ]
+        }
+      },
+      "UpdateCourseRequest": {
+        "summary": "Partially update a course",
+        "value": {
+          "title": "Data Structures and Algorithms",
+          "credits": 4,
+          "instructorIds": [
+            "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+          ]
+        }
+      },
+      "InstructorResponse": {
+        "summary": "An instructor resource",
+        "value": {
+          "data": {
+            "id": "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K",
+            "displayName": "Dr. Ada Lovelace",
+            "email": "ada@example.edu",
+            "department": "Computer Science",
+            "bio": "Teaching algorithms and programming foundations.",
+            "courseIds": [
+              "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D"
+            ],
+            "createdAt": "2026-01-10T08:00:00Z",
+            "updatedAt": "2026-02-10T10:15:00Z"
+          }
+        }
+      },
+      "InstructorListResponse": {
+        "summary": "Paginated instructor results",
+        "value": {
+          "data": [
+            {
+              "id": "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K",
+              "displayName": "Dr. Ada Lovelace",
+              "email": "ada@example.edu",
+              "department": "Computer Science",
+              "bio": "Teaching algorithms and programming foundations.",
+              "courseIds": [
+                "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D"
+              ],
+              "createdAt": "2026-01-10T08:00:00Z",
+              "updatedAt": "2026-02-10T10:15:00Z"
+            }
+          ],
+          "page": 1,
+          "limit": 20,
+          "total": 1
+        }
+      },
+      "PutPrerequisitesRequest": {
+        "summary": "Replace prerequisites for a course",
+        "value": {
+          "prerequisites": [
+            {
+              "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E",
+              "required": true,
+              "minimumGrade": 70
+            },
+            {
+              "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F",
+              "required": false
+            }
+          ]
+        }
+      },
+      "PrerequisitesResponse": {
+        "summary": "An updated prerequisite set",
+        "value": {
+          "data": {
+            "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+            "prerequisites": [
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E",
+                "required": true,
+                "minimumGrade": 70
+              },
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F",
+                "required": false
+              }
+            ],
+            "updatedAt": "2026-03-01T15:00:00Z"
+          }
+        }
+      },
+      "PrerequisiteCheckRequest": {
+        "summary": "Check completed courses against direct prerequisites",
+        "value": {
+          "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+          "completedCourseIds": [
+            "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E"
+          ]
+        }
+      },
+      "PrerequisiteCheckResponse": {
+        "summary": "A direct-prerequisite eligibility result",
+        "value": {
+          "eligible": false,
+          "missing": [
+            "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F"
+          ]
+        }
+      },
+      "EligibilityCheckRequest": {
+        "summary": "Check a student's eligibility",
+        "value": {
+          "studentId": "stu_01J9ZK6B2C3D4E5F6G7H8J9K0M"
+        }
+      },
+      "EligibilityCheckResponse": {
+        "summary": "An eligibility result with per-prerequisite checks",
+        "value": {
+          "data": {
+            "studentId": "stu_01J9ZK6B2C3D4E5F6G7H8J9K0M",
+            "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+            "eligible": false,
+            "evaluatedAt": "2026-03-02T09:30:00Z",
+            "checks": [
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E",
+                "required": true,
+                "satisfied": true,
+                "minimumGrade": 70,
+                "earnedGrade": 84,
+                "reason": "satisfied"
+              },
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F",
+                "required": false,
+                "satisfied": false,
+                "reason": "not_completed"
+              }
+            ]
+          }
+        }
+      },
+      "CreateWebhookSubscriptionRequest": {
+        "summary": "Subscribe an LMS endpoint to course publications",
+        "value": {
+          "url": "https://lms.example.com/webhooks/catalog",
+          "events": [
+            "course.published"
+          ],
+          "description": "LMS synchronization"
+        }
+      },
+      "WebhookSubscriptionCreatedResponse": {
+        "summary": "A new subscription with a one-time signing secret",
+        "value": {
+          "data": {
+            "id": "whs_01J9ZK7C3D4E5F6G7H8J9K0M1N",
+            "url": "https://lms.example.com/webhooks/catalog",
+            "events": [
+              "course.published"
+            ],
+            "status": "active",
+            "description": "LMS synchronization",
+            "createdAt": "2026-03-01T15:00:00Z",
+            "updatedAt": "2026-03-01T15:00:00Z",
+            "signingSecret": "whsec_example_do_not_use_6f1c9a2e7b4d8f0a"
+          }
+        }
+      },
+      "WebhookDeliveryListResponse": {
+        "summary": "Paginated webhook delivery records",
+        "value": {
+          "data": [
+            {
+              "id": "whd_01J9ZK8D4E5F6G7H8J9K0M1N2P",
+              "subscriptionId": "whs_01J9ZK7C3D4E5F6G7H8J9K0M1N",
+              "eventId": "evt_01J9ZK9E5F6G7H8J9K0M1N2P3Q",
+              "eventType": "course.published",
+              "status": "delivered",
+              "attempt": 1,
+              "maxAttempts": 6,
+              "responseStatus": 200,
+              "createdAt": "2026-03-01T15:00:01Z",
+              "lastAttemptAt": "2026-03-01T15:00:02Z",
+              "deliveredAt": "2026-03-01T15:00:02Z"
+            }
+          ],
+          "page": 1,
+          "limit": 20,
+          "total": 1
+        }
+      },
+      "CoursePublishedEvent": {
+        "summary": "A course.published version 1.0 event",
+        "value": {
+          "id": "evt_01J9ZK9E5F6G7H8J9K0M1N2P3Q",
+          "type": "course.published",
+          "version": "1.0",
+          "occurredAt": "2026-03-01T15:00:00Z",
+          "data": {
+            "course": {
+              "id": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+              "code": "CS-101",
+              "title": "Introduction to Computer Science",
+              "description": "Foundational course covering algorithms, data structures, and programming in Python.",
+              "status": "published",
+              "credits": 4,
+              "level": "introductory",
+              "department": "Computer Science",
+              "instructorIds": [
+                "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K"
+              ],
+              "createdAt": "2026-01-15T09:00:00Z",
+              "updatedAt": "2026-03-01T15:00:00Z",
+              "publishedAt": "2026-03-01T15:00:00Z"
+            },
+            "instructors": [
+              {
+                "id": "ins_01J9ZK5A1B2C3D4E5F6G7H8J9K",
+                "displayName": "Dr. Ada Lovelace",
+                "email": "ada@example.edu",
+                "department": "Computer Science",
+                "bio": "Teaching algorithms and programming foundations.",
+                "courseIds": [
+                  "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D"
+                ],
+                "createdAt": "2026-01-10T08:00:00Z",
+                "updatedAt": "2026-02-10T10:15:00Z"
+              }
+            ],
+            "prerequisites": [
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E",
+                "required": true,
+                "minimumGrade": 70
+              },
+              {
+                "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F",
+                "required": false
+              }
+            ],
+            "enrichment": {
+              "summary": "A foundational computer science course covering programming, algorithms, and problem solving.",
+              "tags": [
+                "programming",
+                "algorithms",
+                "foundations"
+              ],
+              "suggestedPrerequisites": [
+                "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F"
+              ],
+              "source": "ai"
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "summary": "Healthy service",
+        "value": {
+          "status": "ok",
+          "version": "1.0.0",
+          "timestamp": "2026-03-01T15:00:00Z",
+          "checks": {
+            "database": "ok",
+            "ai": "ok"
+          }
+        }
+      },
+      "InvalidRequestError": {
+        "summary": "Malformed request",
+        "value": {
+          "error": {
+            "code": "invalid_request",
+            "message": "The request is malformed.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "UnauthorizedError": {
+        "summary": "Missing or invalid token",
+        "value": {
+          "error": {
+            "code": "unauthorized",
+            "message": "A valid Bearer token is required.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "ForbiddenError": {
+        "summary": "Role is not allowed",
+        "value": {
+          "error": {
+            "code": "forbidden",
+            "message": "The authenticated role cannot perform this operation.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "NotFoundError": {
+        "summary": "Resource not found",
+        "value": {
+          "error": {
+            "code": "not_found",
+            "message": "The requested resource was not found.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "ConflictError": {
+        "summary": "Resource state conflict",
+        "value": {
+          "error": {
+            "code": "conflict",
+            "message": "The request conflicts with the current resource state.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "ValidationFailedError": {
+        "summary": "Business rule validation failure",
+        "value": {
+          "error": {
+            "code": "validation_failed",
+            "message": "Request validation failed.",
+            "details": {
+              "fields": [
+                {
+                  "path": "credits",
+                  "message": "Must be between 0 and 30."
+                }
+              ]
+            },
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "RateLimitedError": {
+        "summary": "Rate limit exceeded",
+        "value": {
+          "error": {
+            "code": "rate_limited",
+            "message": "Too many requests. Retry later.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "InternalError": {
+        "summary": "Unexpected server error",
+        "value": {
+          "error": {
+            "code": "internal_error",
+            "message": "An unexpected error occurred.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      },
+      "ServiceUnavailableError": {
+        "summary": "Dependency unavailable",
+        "value": {
+          "error": {
+            "code": "service_unavailable",
+            "message": "The service is temporarily unavailable.",
+            "requestId": "req_01J9ZKAF6G7H8J9K0M1N2P3Q4R"
+          }
+        }
+      }
+    }
+  }
+}

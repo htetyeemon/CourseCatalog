@@ -13,9 +13,12 @@ control.
 
 ## Token profile
 
-Tokens are compact-serialized JWTs signed by the catalog identity provider.
-The signing algorithm must be asymmetric (`RS256` or `ES256` are the supported
-algorithms). Symmetric algorithms (`HS*`) and `alg: none` are rejected.
+Tokens are compact-serialized JWTs issued by the catalog identity provider.
+The current Worker verifies `HS256` tokens using the `JWT_SECRET` Worker
+secret. `alg: none` and all other algorithms are rejected. The verifier is
+structured so production can migrate to asymmetric keys and JWKS without
+changing route authorization. Do not use the shared HS256 secret outside
+trusted Worker development and deployment environments.
 
 ### Required claims
 
@@ -23,7 +26,7 @@ algorithms). Symmetric algorithms (`HS*`) and `alg: none` are rejected.
 | --- | --- | --- |
 | `sub` | string | Stable subject identifier. Students use their `stu_` ID, instructors use their `ins_` ID, and service tokens use a stable service principal identifier. |
 | `role` | string | One of `student`, `instructor`, `catalog_admin`, or `service`. |
-| `iss` | string | Issuer. Must equal `https://auth.course-catalog.dev`. |
+| `iss` | string | Issuer. Must equal `JWT_ISSUER`, defaulting to `https://auth.course-catalog.dev`. |
 | `exp` | integer | Expiry time as Unix seconds. |
 
 Optional claims:
@@ -33,7 +36,7 @@ Optional claims:
 | `iat` | integer | Issued-at time as Unix seconds. |
 | `nbf` | integer | Not-before time as Unix seconds. |
 | `jti` | string | Unique token identifier, useful for audit and revocation. |
-| `aud` | string or string array | Audience. If present, it must include `catalog-api`. |
+| `aud` | string or string array | Audience. If present, it must include `JWT_AUDIENCE`, defaulting to `catalog-api`. |
 
 Example decoded payload:
 
@@ -48,16 +51,19 @@ Example decoded payload:
 }
 ```
 
-### Issuer and key discovery
+### Issuer and verification keys
 
-- Issuer: `https://auth.course-catalog.dev`
-- JWKS endpoint: `https://auth.course-catalog.dev/.well-known/jwks.json`
-- API audience: `catalog-api`
+- Issuer: `JWT_ISSUER` (`https://auth.course-catalog.dev` by default)
+- API audience: `JWT_AUDIENCE` (`catalog-api` by default)
+- Current algorithm: `HS256` with `JWT_SECRET`
 
-The JWKS endpoint publishes the current verification keys. Consumers must
-select a key by the JWT header's `kid`, cache the JWKS response, and refresh it
-when an unknown `kid` is encountered. Cache the JWKS for a short TTL (for
-example, one hour) and rate-limit forced refreshes.
+The shared HS256 secret is configured with `wrangler secret put JWT_SECRET` and
+must never be committed, logged, or returned by an endpoint. For local
+development, put a strong random value in `.dev.vars`.
+
+The intended production profile is asymmetric signing with a JWKS endpoint.
+When that migration happens, the verifier will select a key by `kid`, cache the
+JWKS response, and refresh it when an unknown `kid` is encountered.
 
 ## Roles
 
@@ -80,14 +86,16 @@ example, one hour) and rate-limit forced refreshes.
 | `listInstructors` | `GET /v1/instructors` | `student`, `instructor`, `catalog_admin`, `service` |
 | `getInstructor` | `GET /v1/instructors/{instructorId}` | `student`, `instructor`, `catalog_admin`, `service` |
 | `putCoursePrerequisites` | `PUT /v1/courses/{courseId}/prerequisites` | `catalog_admin`, `service` |
-| `checkPrerequisiteEligibility` | `POST /v1/courses/{courseId}/eligibility-check` | `student`, `instructor`, `catalog_admin`, `service` |
+| `checkPrerequisiteCompletion` | `POST /v1/prerequisites/check` | `student`, `instructor`, `catalog_admin`, `service` |
+| `checkPrerequisiteEligibility` | `POST /v1/courses/{courseId}/eligibility-check` | Contract only; not implemented by the current Worker |
 | `createWebhookSubscription` | `POST /v1/webhooks/subscriptions` | `catalog_admin`, `service` |
 | `listWebhookDeliveries` | `GET /v1/webhooks/deliveries` | `catalog_admin`, `service` |
 | `getHealth` | `GET /v1/health` | Public |
 
-Additional subject-level rule: a caller with role `student` may only check
-eligibility for the `studentId` that matches its `sub` claim. Other roles may
-check any student.
+`checkPrerequisiteCompletion` is stateless: only direct prerequisites marked
+required are evaluated, and optional prerequisites never block eligibility.
+Grades and student records are not read. The older student-record-based
+`checkPrerequisiteEligibility` operation is not implemented by this Worker.
 
 ## Calling the API
 
@@ -116,13 +124,25 @@ curl -s -X POST "https://api.course-catalog.dev/v1/courses" \
   }'
 ```
 
-Check eligibility as a student:
+Check direct prerequisites using completed course IDs:
 
 ```bash
-curl -s -X POST "https://api.course-catalog.dev/v1/courses/crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D/eligibility-check" \
+curl -s -X POST "https://api.course-catalog.dev/v1/prerequisites/check" \
   -H "Authorization: Bearer $CATALOG_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"studentId": "stu_01J9ZK6B2C3D4E5F6G7H8J9K0M"}'
+  -d '{
+    "courseId": "crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2D",
+    "completedCourseIds": ["crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2E"]
+  }'
+```
+
+The response lists required direct prerequisites that are still missing:
+
+```json
+{
+  "eligible": false,
+  "missing": ["crs_01J9ZK4Q7M2W8N5R3T6Y0B1C2F"]
+}
 ```
 
 Health is public:
@@ -154,9 +174,7 @@ Include the `requestId` when reporting an issue.
 
 ## Verifying tokens in Cloudflare Workers
 
-The analysis below uses the Workers runtime's built-in Web Crypto API, which
-supports RSA, ECDSA, and Ed25519 verification. You can also use a maintained
-JWT/JWKS library, provided it enforces the same checks.
+The current verifier uses the Workers runtime's built-in Web Crypto API.
 
 1. Read the `Authorization` header. Require the `Bearer` scheme and a
    non-empty token.
@@ -164,14 +182,13 @@ JWT/JWKS library, provided it enforces the same checks.
    malformed tokens.
 3. Decode the header and payload as JSON. Do not trust either until the
    signature is verified.
-4. Reject `alg` values outside the `RS256`/`ES256` allowlist and reject tokens
-   without a `kid`.
-5. Load the JWKS, select the key matching `kid`, and verify the signature with
+4. Reject any `alg` other than `HS256`.
+5. Import `JWT_SECRET` as an HMAC SHA-256 key and verify the signature with
    `crypto.subtle.verify`.
-6. Validate `iss` exactly. Reject a missing or mismatched issuer.
-7. Validate `exp` against the current Unix time with a small clock skew
-   allowance (60 seconds is recommended). If `nbf` is present, validate it with
-   the same allowance. If `aud` is present, require `catalog-api`.
+6. Validate `iss` exactly against `JWT_ISSUER`.
+7. Validate `exp` against the current Unix time with a 60-second clock skew
+   allowance. If `nbf` is present, validate it with the same allowance. If
+   `aud` is present, require `JWT_AUDIENCE`.
 8. Validate that `role` is a known role and is allowed for the operation.
 9. Attach an internal auth context such as `{ sub, role }` to the request.
    Never pass the raw token to downstream services or logs.
@@ -180,9 +197,7 @@ Recommended token handling:
 
 - Use HTTPS only.
 - Keep access tokens short-lived.
-- Cache JWKS responses; do not fetch them on every request.
-- Refresh JWKS on an unknown `kid`, with a rate limit to prevent abuse.
-- Reject tokens with duplicate or ambiguous header parameters.
+- Rotate `JWT_SECRET` through a coordinated deployment.
 - Do not accept a token merely because its payload looks plausible; the
   signature and claims are mandatory.
 
@@ -194,7 +209,21 @@ configuration's `secrets.required` list. For local development, use a
 `.dev.vars` file in the same directory as the Wrangler configuration. Both
 `.dev.vars*` and `.env*` are gitignored in this repository.
 
-Non-sensitive values such as `JWT_ISSUER`, `JWKS_URL`, and `JWT_AUDIENCE` may
-be plain Worker variables. The webhook signing secret is generated per
-subscription and is returned only once at subscription creation; see
-[webhooks.md](./webhooks.md).
+Non-sensitive values such as `JWT_ISSUER` and `JWT_AUDIENCE` may be plain
+Worker variables.
+
+For local development, copy `.dev.vars.example` to `.dev.vars`, replace the
+placeholder secret, and mint a short-lived token:
+
+```bash
+npm run migrate:local
+npm run seed:local
+npm run token:dev -- --role catalog_admin --sub ins_01J9ZK5A1B2C3D4E5F6G7H8J01
+```
+
+Use the printed token as `Authorization: Bearer <token>`. The minting script is
+development-only and reads `.dev.vars` or the process environment; it never
+contains a default secret.
+
+The webhook signing secret is generated per subscription and is returned only
+once at subscription creation; see [webhooks.md](./webhooks.md).

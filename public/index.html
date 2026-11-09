@@ -3,53 +3,141 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Course Catalog API</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        line-height: 1.6;
-      }
-
-      body {
-        margin: 0;
-        padding: 3rem 1.5rem;
-        background: #0f172a;
-        color: #e2e8f0;
-      }
-
-      main {
-        max-width: 44rem;
-        margin: 0 auto;
-      }
-
-      h1 {
-        margin-bottom: 0.25rem;
-        font-size: 2rem;
-      }
-
-      p {
-        color: #94a3b8;
-      }
-
-      code {
-        padding: 0.15rem 0.4rem;
-        border-radius: 0.25rem;
-        background: #1e293b;
-        color: #f8fafc;
-      }
-
-      a {
-        color: #7dd3fc;
-      }
-    </style>
+    <title>Course Catalog — Browse</title>
+    <link rel="stylesheet" href="/css/app.css" />
   </head>
   <body>
-    <main>
-      <h1>Course Catalog API</h1>
-      <p>Cloudflare Workers service for courses, instructors, prerequisites, and webhooks.</p>
-      <p>Health check: <code>GET /v1/health</code></p>
-      <p>The API contract lives in <code>openapi.yaml</code> at the repository root.</p>
-    </main>
+    <h1>Course Catalog</h1>
+    <div id="token-banner"></div>
+
+    <div class="search-bar">
+      <input type="search" id="q" placeholder="Search courses…" aria-label="Search courses" />
+      <button type="button" id="btn-search">Search</button>
+    </div>
+
+    <div class="filters">
+      <label>Department</label>
+      <select id="department"><option value="">All</option></select>
+      <label>Level</label>
+      <select id="level"><option value="">All</option></select>
+    </div>
+
+    <div id="departments-loading" class="loader" style="display:none" role="status" aria-label="Loading filters"></div>
+    <div id="filter-error" style="color:#f87171; margin-bottom:0.5rem; font-size:0.9rem;"></div>
+
+    <ul id="course-list" class="course-list" role="list" aria-label="Courses"></ul>
+
+    <div id="course-list-error" style="color:#f87171; margin-bottom:0.5rem;"></div>
+    <div id="course-list-empty" style="margin-bottom:0.5rem;"></div>
+    <div id="pagination"></div>
+
+    <p class="inline-note" style="margin-top:1rem; color:#64748b;">Results require a valid bearer JWT. Enter it in the banner above.</p>
+
+    <script type="module">
+      import { api, setToken, getToken, htmlEscape, renderCourseListItem } from "/js/api.js";
+      import { initTokenBanner, showLoading, showEmpty, showError, renderPagination, toast } from "/js/ui.js";
+
+      initTokenBanner({ containerId: "token-banner" });
+
+      const qInput = document.getElementById("q");
+      const btnSearch = document.getElementById("btn-search");
+      const deptSelect = document.getElementById("department");
+      const levelSelect = document.getElementById("level");
+      const listEl = document.getElementById("course-list");
+      const paginationEl = document.getElementById("pagination");
+      const errorEl = document.getElementById("course-list-error");
+      const emptyEl = document.getElementById("course-list-empty");
+      const deptLoading = document.getElementById("departments-loading");
+      const filterError = document.getElementById("filter-error");
+
+      let page = 1;
+      const limit = 10;
+      let abortCtrl = null;
+
+      async function loadFilters() {
+        deptLoading.style.display = "inline-block";
+        filterError.textContent = "";
+        try {
+          const res = await api("/courses?limit=100");
+          if (!res.ok) throw new Error(`Failed to load filters (${res.status})`);
+          const data = res.body;
+          const courses = data?.data || [];
+
+          const depts = [...new Set(courses.map((c) => c.department).filter(Boolean))].sort();
+          const levels = [...new Set(courses.map((c) => c.level).filter(Boolean))].sort();
+
+          deptSelect.innerHTML = '<option value="">All departments</option>' + depts.map(d => `<option value="${htmlEscape(d)}">${htmlEscape(d)}</option>`).join("");
+          levelSelect.innerHTML = '<option value="">All levels</option>' + levels.map(l => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join("");
+        } catch (err) {
+          filterError.textContent = err.message || "Unable to load filters.";
+        } finally {
+          deptLoading.style.display = "none";
+        }
+      }
+
+      async function loadCourses() {
+        errorEl.textContent = "";
+        emptyEl.textContent = "";
+        listEl.innerHTML = "";
+        paginationEl.innerHTML = "";
+
+        const params = new URLSearchParams();
+        const q = qInput.value.trim();
+        if (q) params.set("q", q);
+        const dept = deptSelect.value;
+        if (dept) params.set("department", dept);
+        const level = levelSelect.value;
+        if (level) params.set("level", level);
+        params.set("page", String(page));
+        params.set("limit", String(limit));
+
+        showLoading("course-list");
+
+        if (abortCtrl) abortCtrl.abort();
+        abortCtrl = new AbortController();
+
+        try {
+          const res = await api(`/courses?${params.toString()}`);
+          if (!res.ok) {
+            if (res.status === 401) {
+              showError("course-list", "Unauthorized — please enter a valid bearer JWT in the banner.");
+              return;
+            }
+            throw new Error(`Failed to load courses (${res.status})`);
+          }
+          const data = res.body;
+          const courses = data?.data || [];
+
+          listEl.innerHTML = "";
+          if (courses.length === 0) {
+            showEmpty("course-list", "No courses match your filters.");
+            paginationEl.innerHTML = "";
+            return;
+          }
+
+          for (const course of courses) {
+            listEl.appendChild(renderCourseListItem(course));
+          }
+
+          const total = Number(data.total ?? 0);
+          paginationEl.appendChild(renderPagination({
+            page, total, limit,
+            onPage: (p) => { page = p; loadCourses(); },
+          }));
+        } catch (err) {
+          showError("course-list", err.message || "Unable to load courses.");
+        }
+      }
+
+      function onSearch() { page = 1; loadCourses(); }
+
+      btnSearch.addEventListener("click", onSearch);
+      qInput.addEventListener("keydown", (e) => { if (e.key === "Enter") onSearch(); });
+      deptSelect.addEventListener("change", () => { page = 1; loadCourses(); });
+      levelSelect.addEventListener("change", () => { page = 1; loadCourses(); });
+
+      loadFilters();
+      loadCourses();
+    </script>
   </body>
 </html>

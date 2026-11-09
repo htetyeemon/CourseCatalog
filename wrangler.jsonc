@@ -12,7 +12,12 @@
   },
   "vars": {
     "APP_VERSION": "0.1.0",
-    "ENVIRONMENT": "development"
+    "ENVIRONMENT": "development",
+    "JWT_ISSUER": "https://auth.course-catalog.dev",
+    "JWT_AUDIENCE": "catalog-api"
+  },
+  "secrets": {
+    "required": ["JWT_SECRET"]
   },
   "d1_databases": [
     {
@@ -25,12 +30,20 @@
   "ai": {
     "binding": "AI"
   },
+  "triggers": {
+    "cron": ["*/5 * * * *"]
+  },
   "env": {
     "staging": {
       "name": "course-catalog-staging",
       "vars": {
         "APP_VERSION": "0.1.0",
-        "ENVIRONMENT": "staging"
+        "ENVIRONMENT": "staging",
+        "JWT_ISSUER": "https://auth.course-catalog.dev",
+        "JWT_AUDIENCE": "catalog-api"
+      },
+      "secrets": {
+        "required": ["JWT_SECRET"]
       },
       "d1_databases": [
         {
@@ -48,7 +61,12 @@
       "name": "course-catalog",
       "vars": {
         "APP_VERSION": "0.1.0",
-        "ENVIRONMENT": "production"
+        "ENVIRONMENT": "production",
+        "JWT_ISSUER": "https://auth.course-catalog.dev",
+        "JWT_AUDIENCE": "catalog-api"
+      },
+      "secrets": {
+        "required": ["JWT_SECRET"]
       },
       "d1_databases": [
         {

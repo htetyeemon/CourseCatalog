@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
+import openapiDocument from "../src/openapi.json";
 import openapiSource from "../openapi.yaml?raw";
 import type { z } from "zod";
 import {
+  CourseDetailResponseSchema,
   CourseListResponseSchema,
   CoursePublishedEventSchema,
   CourseResponseSchema,
@@ -14,6 +16,8 @@ import {
   HealthResponseSchema,
   InstructorListResponseSchema,
   InstructorResponseSchema,
+  PrerequisiteCheckRequestSchema,
+  PrerequisiteCheckResponseSchema,
   PrerequisitesResponseSchema,
   PutPrerequisitesRequestSchema,
   UpdateCourseRequestSchema,
@@ -50,6 +54,7 @@ const httpMethods = new Set([
 
 const exampleSchemas: Record<string, z.ZodType> = {
   CourseResponse: CourseResponseSchema,
+  CourseDetailResponse: CourseDetailResponseSchema,
   PublishedCourseResponse: CourseResponseSchema,
   CourseListResponse: CourseListResponseSchema,
   CreateCourseRequest: CreateCourseRequestSchema,
@@ -58,6 +63,8 @@ const exampleSchemas: Record<string, z.ZodType> = {
   InstructorListResponse: InstructorListResponseSchema,
   PutPrerequisitesRequest: PutPrerequisitesRequestSchema,
   PrerequisitesResponse: PrerequisitesResponseSchema,
+  PrerequisiteCheckRequest: PrerequisiteCheckRequestSchema,
+  PrerequisiteCheckResponse: PrerequisiteCheckResponseSchema,
   EligibilityCheckRequest: EligibilityCheckRequestSchema,
   EligibilityCheckResponse: EligibilityCheckResponseSchema,
   CreateWebhookSubscriptionRequest: CreateWebhookSubscriptionRequestSchema,
@@ -79,6 +86,10 @@ const exampleSchemas: Record<string, z.ZodType> = {
 describe("openapi contract", () => {
   it("is OpenAPI 3.1", () => {
     expect(document.openapi).toMatch(/^3\.1\./);
+  });
+
+  it("keeps the served JSON copy in sync with the YAML source", () => {
+    expect(openapiDocument).toEqual(document);
   });
 
   it("keeps every route under /v1", () => {
