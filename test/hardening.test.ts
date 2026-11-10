@@ -3,8 +3,9 @@ import app from "../src/index.js";
 import { structuredLog } from "../src/lib/logger.js";
 import { AiEnrichmentProvider } from "../src/lib/enrichment.js";
 import { CreateWebhookSubscriptionRequestSchema } from "../src/schemas/webhook.js";
+import { JwtVerificationError, verifyJwt } from "../src/lib/jwt.js";
 import { applyTestMigrations, resetTestState, env } from "./helpers/db.js";
-import { authHeaders, ROLES } from "./helpers/tokens.js";
+import { authHeaders, mintToken, ROLES } from "./helpers/tokens.js";
 
 function request(input: string, init: RequestInit = {}): Promise<Response> {
   return Promise.resolve(app.fetch(new Request("http://localhost" + input, init), env));
@@ -36,6 +37,36 @@ describe("structured logger redaction", () => {
       expect(out.error).toBe("rejected [redacted]");
     } finally {
       spy.mockRestore();
+    }
+  });
+});
+
+describe("JWT verification security", () => {
+  it("rejects tampered, expired, and untrusted-issuer catalog tokens", async () => {
+    // Model the identity provider rejecting these tokens so this regression test
+    // exercises the local catalog-token verification fallback without a network call.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ valid: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ));
+
+    try {
+      const validToken = mintToken(env, { role: ROLES.CATALOG_ADMIN });
+      const [header, payload, signature] = validToken.split(".");
+      const changedSignature = `${signature?.[0] === "A" ? "B" : "A"}${signature?.slice(1)}`;
+      const tamperedToken = `${header}.${payload}.${changedSignature}`;
+
+      await expect(verifyJwt(tamperedToken, env)).rejects.toBeInstanceOf(JwtVerificationError);
+      await expect(
+        verifyJwt(mintToken(env, { exp: Math.floor(Date.now() / 1000) - 120 }), env),
+      ).rejects.toThrow("expired");
+      await expect(
+        verifyJwt(mintToken(env, { iss: "https://untrusted.example" }), env),
+      ).rejects.toThrow("issuer");
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });
